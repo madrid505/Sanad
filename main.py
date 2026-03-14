@@ -135,19 +135,27 @@ async def get_target_info(event, parts):
         reply = await event.get_reply_message()
         target_id = reply.sender_id
         target_user = await reply.get_sender()
-    elif len(parts) > 1:
-        input_data = parts[1]
+        return target_id, target_user
+    
+    # البحث عن اليوزر في الكلمة الثانية أو الثالثة (لدعم أوامر الفراغ)
+    potential_inputs = []
+    if len(parts) > 1: potential_inputs.append(parts[1])
+    if len(parts) > 2: potential_inputs.append(parts[2])
+
+    for input_data in potential_inputs:
         try:
             if input_data.isdigit():
                 target_id = int(input_data)
                 target_user = await client.get_entity(target_id)
+                break
             elif input_data.startswith("@"):
                 target_user = await client.get_entity(input_data)
                 target_id = target_user.id
+                break
         except Exception as e:
-            print(f"Error fetching entity: {e}")
+            continue
     return target_id, target_user
-
+        
 # --- 5. معالج الرسائل والأوامر الرئيسي ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
@@ -329,23 +337,31 @@ async def main_handler(event):
         target_rank_val = db.get_rank_value(chat_id, target_id)
         t_name = target_user.first_name if target_user else str(target_id)
 
-        # --- قسم الرفع والتنزيل المطور (يدعم الفراغ واليوزر) ---
+        # --- قسم الرفع والتنزيل المطور (يدعم اليوزر والآيدي بشكل صحيح) ---
         rank_map = {"ادمن": 2, "مدير": 3, "مالك": 4, "مميز": 1}
-        if cmd == "رفع" and len(parts) >= 2:
-            rank_name = parts[1]
-            if rank_name in rank_map:
+        
+        if cmd == "رفع":
+            # البحث عن اسم الرتبة في كلمات الرسالة
+            rank_name = None
+            for p in parts:
+                if p in rank_map:
+                    rank_name = p
+                    break
+            
+            if rank_name and target_id:
                 if sender_id != OWNER_ID and my_rank_val <= rank_map[rank_name]:
                     return await event.respond("❌ لا تملك صلاحية لرفع هذه الرتبة.")
                 for gid in ALLOWED_GROUPS: 
                     db.set_rank(str(gid), target_id, rank_name)
                 return await event.respond(f"👑 تم منح رتبة **{rank_name}** لـ {t_name} في كل الممالك.")
 
-        elif cmd == "تنزيل":
+        elif cmd == "تنزيل" and target_id:
             if sender_id != OWNER_ID and my_rank_val <= target_rank_val:
                 return await event.respond("❌ لا يمكنك تنزيل من هو برتبتك أو أعلى منك.")
             for gid in ALLOWED_GROUPS: 
                 db.set_rank(str(gid), target_id, "عضو")
             return await event.respond(f"📉 تم تنزيل {t_name} لمرتبة عضو.")
+            
 
         # --- قسم العقوبات والإنذارات (يدعم الفراغ) ---
         from telethon.tl.functions.channels import EditBannedRequest
