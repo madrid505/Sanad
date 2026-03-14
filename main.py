@@ -297,13 +297,20 @@ async def main_handler(event):
     # --- ميزة مسح الردود دفعة واحدة ---
     if message == "مسح الردود":
         try:
-            db.cursor.execute("DELETE FROM replies WHERE gid = ? AND word = ?", (chat_id, response_word.text))
-            db.conn.commit()
-        except:
+            # تم تصحيح الاستعلام ليمسح بناءً على رقم المجموعة فقط دون متغيرات خارجية
             db.cursor.execute("DELETE FROM replies WHERE gid = ?", (chat_id,))
             db.conn.commit()
-        await event.reply("🗑️ **تم مسح كافة الردود المبرمجة لهذه المجموعة بنجاح.**")
-
+            await event.reply("🗑️ **تم مسح كافة الردود المبرمجة لهذه المجموعة بنجاح.**")
+        except Exception as e_del:
+            print(f"خطأ في مسح الردود: {e_del}")
+            # محاولة أخرى في حال كان اسم العمود في قاعدتك هو chat_id
+            try:
+                db.cursor.execute("DELETE FROM replies WHERE chat_id = ?", (chat_id,))
+                db.conn.commit()
+                await event.reply("🗑️ **تم مسح كافة الردود بنجاح (Database Fix).**")
+            except:
+                await event.reply("❌ فشل مسح الردود من قاعدة البيانات.")
+                
     # --- [7] نظام التحكم الإمبراطوري (عقوبات + رتب) ---
     parts = message.split()
     if not parts: return
