@@ -304,8 +304,7 @@ async def main_handler(event):
             db.conn.commit()
         await event.reply("🗑️ **تم مسح كافة الردود المبرمجة لهذه المجموعة بنجاح.**")
 
-        # --- [7] نظام التحكم الإمبراطوري (عقوبات + رتب) ---
-            # --- [7] نظام التحكم الإمبراطوري (عقوبات + رتب) ---
+    # --- [7] نظام التحكم الإمبراطوري (عقوبات + رتب) ---
     parts = message.split()
     if not parts: return
     
@@ -378,6 +377,7 @@ async def main_handler(event):
             await apply_penalty(ChatBannedRights(until_date=None, send_messages=False), "رفع الكتم عن")
         elif cmd_2nd in ["الغاء القيود", "رفع القيود", "فك القيود"]:
             await apply_penalty(ChatBannedRights(until_date=None, send_media=False, send_stickers=False, send_gifs=False), "رفع القيود عن")
+
 
     # --- أوامر التفاعل المباشر (تثبيت/حذف) ---
     if event.is_reply:
