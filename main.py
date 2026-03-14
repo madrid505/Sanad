@@ -305,43 +305,38 @@ async def main_handler(event):
         await event.reply("🗑️ **تم مسح كافة الردود المبرمجة لهذه المجموعة بنجاح.**")
 
         # --- [7] نظام التحكم الإمبراطوري (عقوبات + رتب) ---
-    parts = message.split()
+        parts = message.split()
     cmd = parts[0] if parts else ""
+    # دمج أول كلمتين للتعرف على أوامر الفراغ (مثل: الغاء الكتم)
+    cmd_2nd = f"{parts[0]} {parts[1]}" if len(parts) >= 2 else cmd
     
-    # استدعاء المحرك الجديد
     target_id, target_user = await get_target_info(event, parts)
 
     if target_id:
-        # حماية المطور أنس
         if target_id == OWNER_ID and sender_id != OWNER_ID:
-            return await event.respond("⚠️ **توقف!** لا يمكن المساس بالمقام السامي للمطور أنس.")
+            return await event.respond("⚠️ **توقف!** لا يمكن المساس بالسلطات العليا للمطور أنس.")
 
         my_rank_val = db.get_rank_value(chat_id, sender_id)
         target_rank_val = db.get_rank_value(chat_id, target_id)
         t_name = target_user.first_name if target_user else str(target_id)
 
-        # --- قسم الرفع والتنزيل الشامل ---
-        rank_map = {"رفع مالك": "مالك", "رفع مدير": "مدير", "رفع ادمن": "ادمن", "رفع مميز": "مميز"}
-        combined_cmd = " ".join(parts[:2])
-        
-        if cmd in rank_map or combined_cmd in rank_map:
-            new_rank = rank_map.get(cmd) or rank_map.get(combined_cmd)
-            new_val = {"مالك": 4, "مدير": 3, "ادمن": 2, "مميز": 1}.get(new_rank, 0)
-            if sender_id != OWNER_ID and my_rank_val <= new_val:
-                return await event.respond("❌ لا تملك صلاحية لرفع هذه الرتبة.")
-            
-            for gid in ALLOWED_GROUPS:
-                db.set_rank(str(gid), target_id, new_rank)
-            await event.respond(f"👑 تم منح رتبة **{new_rank}** لـ {t_name} في كل الممالك.")
+        # --- قسم الرفع والتنزيل المطور (يدعم الفراغ واليوزر) ---
+        rank_map = {"ادمن": 2, "مدير": 3, "مالك": 4, "مميز": 1}
+        if cmd == "رفع" and len(parts) >= 2:
+            rank_name = parts[1]
+            if rank_name in rank_map:
+                if sender_id != OWNER_ID and my_rank_val <= rank_map[rank_name]:
+                    return await event.respond("❌ لا تملك صلاحية لرفع هذه الرتبة.")
+                for gid in ALLOWED_GROUPS: db.set_rank(str(gid), target_id, rank_name)
+                return await event.respond(f"👑 تم منح رتبة **{rank_name}** لـ {t_name} في كل الممالك.")
 
         elif cmd == "تنزيل":
             if sender_id != OWNER_ID and my_rank_val <= target_rank_val:
                 return await event.respond("❌ لا يمكنك تنزيل من هو برتبتك أو أعلى منك.")
-            for gid in ALLOWED_GROUPS:
-                db.set_rank(str(gid), target_id, "عضو")
-            await event.respond(f"📉 تم تنزيل {t_name} لمرتبة عضو.")
+            for gid in ALLOWED_GROUPS: db.set_rank(str(gid), target_id, "عضو")
+            return await event.respond(f"📉 تم تنزيل {t_name} لمرتبة عضو.")
 
-        # --- قسم العقوبات الفعلي (تليجرام API) ---
+        # --- قسم العقوبات والإنذارات (يدعم الفراغ) ---
         from telethon.tl.functions.channels import EditBannedRequest
         from telethon.tl.types import ChatBannedRights
 
@@ -349,23 +344,35 @@ async def main_handler(event):
             try:
                 await client(EditBannedRequest(event.chat_id, target_id, rights))
                 await event.respond(f"✅ تم **{action_name}** المستخدم: {t_name}")
-            except Exception as e:
-                await event.respond(f"❌ فشل التنفيذ. تأكد من صلاحيات البوت.\nالسبب: {e}")
+            except Exception as e: await event.respond(f"❌ فشل التنفيذ: {e}")
 
+        # أوامر الإنذار
+        if cmd == "انذار":
+            w_count = db.add_warn(chat_id, target_id)
+            if w_count >= 3:
+                db.reset_warns(chat_id, target_id)
+                await apply_penalty(ChatBannedRights(until_date=None, send_messages=True), "كتم تلقائي (بسبب بلوغ 3 إنذارات)")
+            else:
+                await event.respond(f"⚠️ **إنذار ملكي!**\nالعضو: {t_name}\nعدد إنذاراته الآن: {w_count}/3\n*عند الثالث سيتم كتمه تلقائياً.*")
+        
+        elif cmd_2nd == "رفع انذار":
+            db.reset_warns(chat_id, target_id)
+            await event.respond(f"✅ تم تصفير إنذارات {t_name}. فليكن هذا درساً له!")
+
+        # أوامر العقوبات (بدون أندرسكور)
         if cmd == "حظر":
             await apply_penalty(ChatBannedRights(until_date=None, view_messages=True), "حظر")
-        elif cmd == "طرد":
-            await apply_penalty(ChatBannedRights(until_date=None, view_messages=True), "طرد")
-            await client.kick_participant(event.chat_id, target_id)
         elif cmd == "كتم":
             await apply_penalty(ChatBannedRights(until_date=None, send_messages=True), "كتم")
         elif cmd == "تقييد":
             await apply_penalty(ChatBannedRights(until_date=None, send_media=True, send_stickers=True, send_gifs=True), "تقييد")
-        elif cmd in ["الغاء_الحظر", "رفع_الحظر", "فك_الحظر"]:
+        elif cmd_2nd in ["الغاء الحظر", "رفع الحظر", "فك الحظر"]:
             await apply_penalty(ChatBannedRights(until_date=None, view_messages=False), "رفع الحظر عن")
-        elif cmd in ["الغاء_الكتم", "رفع_الكتم"]:
+        elif cmd_2nd in ["الغاء الكتم", "رفع الكتم", "فك الكتم"]:
             await apply_penalty(ChatBannedRights(until_date=None, send_messages=False), "رفع الكتم عن")
-
+        elif cmd_2nd in ["الغاء القيود", "رفع القيود", "فك القيود"]:
+            await apply_penalty(ChatBannedRights(until_date=None, send_media=False, send_stickers=False, send_gifs=False), "رفع القيود عن")
+        
     # --- أوامر التفاعل المباشر (تثبيت/حذف) ---
     if event.is_reply:
         target_msg = await event.get_reply_message()
