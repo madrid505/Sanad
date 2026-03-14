@@ -2,13 +2,17 @@ import re
 import io
 from telethon import events
 from database import db
-# نعتبر أن hasher موجود، إذا واجهت مشكلة تأكد من وجود الملف
-try: from hasher import get_image_hash
-except: get_image_hash = None
 
+# نظام البصمة للصور (إذا كان متوفراً)
+try: 
+    from hasher import get_image_hash
+except: 
+    get_image_hash = None
+
+# استدعاء الوظائف من الملف الرئيسي
 from __main__ import client, ALLOWED_GROUPS, check_privilege 
 
-# خريطة الميزات المحدثة
+# خريطة الميزات (عربي - إنجليزي)
 FEATURES = {
     "الروابط": "links",
     "الصور": "photos",
@@ -23,10 +27,10 @@ FEATURES = {
     "الترحيب": "welcome_status"
 }
 
-# --- 1. معالج الحذف التلقائي الذكي ---
+# --- 1. معالج الحماية التلقائي (الرادار الصامت) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def auto_protection_handler(event):
-    # استثناء الإدارة والمميزين (المقام السامي مشمول برتبة أعلى من مميز)
+    # استثناء الإدارة والمميزين فوراً
     if await check_privilege(event, "مميز"):
         return
 
@@ -34,102 +38,96 @@ async def auto_protection_handler(event):
     msg = event.raw_text or "" 
 
     try:
-        # 1. فحص الروابط والمعرفات (Regex مطور)
+        # أ. فحص الروابط والمعرفات (Regex مطور)
         if db.is_locked(gid, "links"):
             if re.search(r'(https?://\S+|t\.me/\S+|www\.\S+|\S+\.(me|xyz|info|tk|ml|ga|cf|gq|top|rocks|site|online))', msg):
-                await event.delete()
-                return
+                return await event.delete()
 
         if db.is_locked(gid, "usernames"):
             if re.search(r'@\S+', msg):
-                await event.delete()
-                return
+                return await event.delete()
 
-        # 2. فحص الوسائط
+        # ب. فحص الوسائط والملفات
         if event.photo:
             if db.is_locked(gid, "photos"):
-                await event.delete()
-                return
-            # فحص البصمة (Blacklist) للصور
+                return await event.delete()
+            
+            # فحص القائمة السوداء للصور (إذا كان الهاشر مفعل)
             if get_image_hash:
-                photo_bytes = await event.download_media(file=io.BytesIO())
-                # تأكد أن دالة is_image_blacklisted موجودة في database.py
                 try:
-                    if db.is_image_blacklisted(get_image_hash(photo_bytes)):
-                        await event.delete()
-                        return
+                    photo_bytes = await event.download_media(file=io.BytesIO())
+                    img_hash = get_image_hash(photo_bytes)
+                    # فحص مباشر في قاعدة البيانات
+                    db.cursor.execute("SELECT 1 FROM image_blacklist WHERE hash = ?", (img_hash,))
+                    if db.cursor.fetchone():
+                        return await event.delete()
                 except: pass
 
-        # فحص باقي الأقفال عبر القائمة الشاملة
+        # ج. فحص باقي الأقفال عبر القائمة الشاملة
         checks = {
             "stickers": event.sticker,
             "gifs": event.gif,
             "forward": event.fwd_from,
             "videos": (event.video or event.video_note),
             "voice": event.voice,
-            "contacts": event.contact
+            "contacts": event.contact,
+            "files": event.document
         }
         
         for key, condition in checks.items():
             if condition and db.is_locked(gid, key):
-                await event.delete()
-                return
-
-        # فحص الملفات (Documents)
-        if db.is_locked(gid, "files") and event.document:
-            # التأكد أنه ليس ميديا تم فحصها سابقاً
-            if not any([event.voice, event.video, event.gif, event.sticker]):
-                await event.delete()
+                # استثناء: إذا كان الملف فيديو أو بصمة وتم فحصهم لا نحذف مرتين
+                return await event.delete()
 
     except Exception as e:
-        print(f"Lock System Error: {e}")
+        print(f"⚠️ خطأ في نظام الحماية: {e}")
 
-# --- 2. أوامر التحكم الإداري ---
+# --- 2. أوامر التحكم اليدوي (قفل / فتح) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def locks_control_handler(event):
     msg = event.raw_text
     gid = str(event.chat_id)
 
+    # التحقق من أن المرسل مدير فأعلى
     if not await check_privilege(event, "مدير"):
         return
 
-    # معالجة أوامر قفل/فتح الميزات
+    # أوامر قفل/فتح الميزات الفردية
     for ar_name, en_key in FEATURES.items():
         if msg == f"قفل {ar_name}":
             if en_key == "welcome_status":
                 db.set_setting(gid, en_key, "off")
             else:
                 db.toggle_lock(gid, en_key, 1)
-            await event.respond(f"🔒 تم قفل **{ar_name}** بنجاح.")
-            return
+            return await event.respond(f"🔒 تم قفل **{ar_name}** بنجاح.")
         
         elif msg == f"فتح {ar_name}":
             if en_key == "welcome_status":
                 db.set_setting(gid, en_key, "on")
             else:
                 db.toggle_lock(gid, en_key, 0)
-            await event.respond(f"🔓 تم فتح **{ar_name}** بنجاح.")
-            return
+            return await event.respond(f"🔓 تم فتح **{ar_name}** بنجاح.")
 
-    # --- 3. التحكم بالدردشة والوسائط الجماعية ---
+    # --- 3. أوامر السيطرة الجماعية ---
     if msg == "قفل الدردشة":
         try:
+            from telethon.tl.types import ChatBannedRights
             await client.edit_permissions(event.chat_id, send_messages=False)
-            await event.respond("🚫 تم إغلاق الدردشة. (الإدارة فقط يمكنهم الكلام).")
-        except: await event.respond("❌ فشل القفل، تأكد من صلاحيات البوت.")
+            await event.respond("🚫 **تم إغلاق الدردشة.**\n(الآن الصمت يسود، والإدارة فقط من تتكلم).")
+        except: await event.respond("❌ عذراً، تأكد من أنني أملك صلاحية (تغيير معلومات المجموعة).")
             
     elif msg == "فتح الدردشة":
         try:
             await client.edit_permissions(event.chat_id, send_messages=True, send_media=True, send_stickers=True, send_gifs=True)
-            await event.respond("✅ تم فتح الدردشة بنجاح.")
-        except: await event.respond("❌ فشل الفتح.")
+            await event.respond("✅ **تم فتح الدردشة.**\nبإمكان الجميع التفاعل الآن.")
+        except: await event.respond("❌ فشل فتح الدردشة.")
 
     elif msg == "قفل الوسائط":
         for m in ["photos", "videos", "stickers", "gifs", "voice", "files"]:
             db.toggle_lock(gid, m, 1)
-        await event.respond("🔒 تم قفل **جميع الوسائط** في هذه المجموعة.")
+        await event.respond("🔒 **تم قفل كافة الوسائط.** (المجموعة الآن للنصوص فقط).")
         
     elif msg == "فتح الوسائط":
         for m in ["photos", "videos", "stickers", "gifs", "voice", "files"]:
             db.toggle_lock(gid, m, 0)
-        await event.respond("🔓 تم فتح **جميع الوسائط**.")
+        await event.respond("🔓 **تم فتح كافة الوسائط.**")
