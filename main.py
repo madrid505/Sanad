@@ -305,8 +305,11 @@ async def main_handler(event):
         await event.reply("🗑️ **تم مسح كافة الردود المبرمجة لهذه المجموعة بنجاح.**")
 
         # --- [7] نظام التحكم الإمبراطوري (عقوبات + رتب) ---
-        parts = message.split()
-    cmd = parts[0] if parts else ""
+            # --- [7] نظام التحكم الإمبراطوري (عقوبات + رتب) ---
+    parts = message.split()
+    if not parts: return
+    
+    cmd = parts[0]
     # دمج أول كلمتين للتعرف على أوامر الفراغ (مثل: الغاء الكتم)
     cmd_2nd = f"{parts[0]} {parts[1]}" if len(parts) >= 2 else cmd
     
@@ -327,13 +330,15 @@ async def main_handler(event):
             if rank_name in rank_map:
                 if sender_id != OWNER_ID and my_rank_val <= rank_map[rank_name]:
                     return await event.respond("❌ لا تملك صلاحية لرفع هذه الرتبة.")
-                for gid in ALLOWED_GROUPS: db.set_rank(str(gid), target_id, rank_name)
+                for gid in ALLOWED_GROUPS: 
+                    db.set_rank(str(gid), target_id, rank_name)
                 return await event.respond(f"👑 تم منح رتبة **{rank_name}** لـ {t_name} في كل الممالك.")
 
         elif cmd == "تنزيل":
             if sender_id != OWNER_ID and my_rank_val <= target_rank_val:
                 return await event.respond("❌ لا يمكنك تنزيل من هو برتبتك أو أعلى منك.")
-            for gid in ALLOWED_GROUPS: db.set_rank(str(gid), target_id, "عضو")
+            for gid in ALLOWED_GROUPS: 
+                db.set_rank(str(gid), target_id, "عضو")
             return await event.respond(f"📉 تم تنزيل {t_name} لمرتبة عضو.")
 
         # --- قسم العقوبات والإنذارات (يدعم الفراغ) ---
@@ -344,7 +349,8 @@ async def main_handler(event):
             try:
                 await client(EditBannedRequest(event.chat_id, target_id, rights))
                 await event.respond(f"✅ تم **{action_name}** المستخدم: {t_name}")
-            except Exception as e: await event.respond(f"❌ فشل التنفيذ: {e}")
+            except Exception as e: 
+                await event.respond(f"❌ فشل التنفيذ: {e}")
 
         # أوامر الإنذار
         if cmd == "انذار":
@@ -372,7 +378,7 @@ async def main_handler(event):
             await apply_penalty(ChatBannedRights(until_date=None, send_messages=False), "رفع الكتم عن")
         elif cmd_2nd in ["الغاء القيود", "رفع القيود", "فك القيود"]:
             await apply_penalty(ChatBannedRights(until_date=None, send_media=False, send_stickers=False, send_gifs=False), "رفع القيود عن")
-        
+
     # --- أوامر التفاعل المباشر (تثبيت/حذف) ---
     if event.is_reply:
         target_msg = await event.get_reply_message()
