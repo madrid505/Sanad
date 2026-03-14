@@ -128,6 +128,26 @@ async def reactive_replies(event):
     elif msg_text == "تصبح على خير":
         await event.reply(f"وأنت من أهل الخير يا {user_title}، أحلام سعيدة ونوم العوافي 💤")
 
+async def get_target_info(event, parts):
+    target_id = None
+    target_user = None
+    if event.is_reply:
+        reply = await event.get_reply_message()
+        target_id = reply.sender_id
+        target_user = await reply.get_sender()
+    elif len(parts) > 1:
+        input_data = parts[1]
+        try:
+            if input_data.isdigit():
+                target_id = int(input_data)
+                target_user = await client.get_entity(target_id)
+            elif input_data.startswith("@"):
+                target_user = await client.get_entity(input_data)
+                target_id = target_user.id
+        except Exception as e:
+            print(f"Error fetching entity: {e}")
+    return target_id, target_user
+
 # --- 5. معالج الرسائل والأوامر الرئيسي ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
