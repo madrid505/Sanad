@@ -84,6 +84,29 @@ async def reactive_replies(event):
     msg_count = db.get_user_messages(group_id, user_id)
     user_title = get_user_title(msg_count)
     is_admin = await check_privilege(event, "مدير")
+    # الرد الملكي عند ذكر اسم أنس أو الرد عليه
+    anas_names = ["انس", "أنس", "انس السلايطة", "المطور"]
+    is_reply_to_anas = False
+    if event.is_reply:
+        rep_msg = await event.get_reply_message()
+        if rep_msg.sender_id == OWNER_ID:
+            is_reply_to_anas = True
+
+    if any(name in msg_text for name in anas_names) or is_reply_to_anas:
+        anas_responses = [
+            "يا حيّ من لفتنا ترحيبةٍ تبري العلة.. سليل المجد والقاف والناس تدله. 👑",
+            "القمة لا تزدحم بالأقدام، بل تزدحم بالعقول التي صَنعتها. ✨",
+            "أنا لا أتبع القوانين، أنا أصنعها. – يوليوس قيصر. 🛡️",
+            "لا تعامل الناس بذكائك، بل عاملهم بأخلاقك، فبالذكاء تملك عقولهم وبالأخلاق تملك قلوبهم. 💎",
+            "نورت إمبراطوريتك يا مؤسس النظام، الأكواد تنحني أمام صانعها. 🎩",
+            "السكوت في حضرة الكبار هيبة، والرد على أنس مغامرة غير محسوبة. 🤐",
+            "عزّي لغيرك لا نوى يمسّ هيبتك.. ما درى إنك ملك والأمر بيدك وقبضتك. ⚔️",
+            "النصر لا يُمنح بل يُنتزع، وأنا انتزعت القمة. 🤴",
+            "اجعل صمتك لغة، وإنجازك صوتاً، وسيعرف العالم من أنت دون كلام. ⚙️",
+            "الملك حضر! كفوا الأيدي عن العبث، فالحصانة الملكية فُعلت تلقائياً. 🛡️👑"
+        ]
+        await event.reply(f"👑 **| تـرحـيـب مـلـكـي**\n━━━━━━━━━━━━━━\n✨ {random.choice(anas_responses)}\n━━━━━━━━━━━━━━")
+        return
 
     # ردود كلمة (بوت) المتنوعة
     if msg_text == "بوت":
