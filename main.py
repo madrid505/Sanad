@@ -191,12 +191,7 @@ async def main_handler(event):
         # التعرف التلقائي على المالك الأساسي (أنس)
         my_rank = "مالك (مطور المشروع) 👑" if sender_id == OWNER_ID else db.get_rank(chat_id, sender_id)
         info_msg = (
-            f"📊 **بطاقة تفاصيلك في Monopoly**\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"🎖️ **رتبتك الحالية:** {my_rank}\n"
-            f"🏆 **لقبك التفاعلي:** {my_title}\n"
-            f"📈 **عدد مشاركاتك:** {my_count} رسالة\n"
-            f"━━━━━━━━━━━━━━━━━━"
+            f"📋 **| الـهـويـة الـشـخـصـيـة**\n━━━━━━━━━━━━━━\n👤 **الاسـم:** {event.sender.first_name}\n🆔 **الـمـعـرف:** `{sender_id}`\n🎖️ **الـرتبـة:** {my_rank}\n🏆 **الـلـقـب:** {my_title}\n📈 **الـمـشاركات:** {my_count} رسـالة\n🕒 **الـتـوقيـت:** {datetime.now().strftime('%I:%M %p')}\n🛡️ **الـحـالـة:** مـتفاعل مـلكي ✅\n━━━━━━━━━━━━━━"
         )
         await event.reply(info_msg)
         return
@@ -240,17 +235,9 @@ async def main_handler(event):
             t_time = datetime.now().strftime("%I:%M %p")
             
             kashf_text = (
-                f"🕵️‍♂️ **| بطاقة كشف Monopoly**\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"👤 **الاسم:** {target_user.first_name}\n"
-                f"🆔 **الآيدي:** `{target_user.id}`\n"
-                f"🎖️ **الرتبة:** {t_rank}\n"
-                f"🏆 **اللقب:** {t_title}\n"
-                f"📈 **المشاركات:** {t_count}\n"
-                f"🕒 **التوقيت:** {t_time}\n"
-                f"🛡️ **الحالة:** سجل نظيف ✅\n"
-                f"━━━━━━━━━━━━━━"
+                f"📋 **| الـهـويـة الـشـخـصـيـة**\n━━━━━━━━━━━━━━\n👤 **الاسـم:** {target_user.first_name}\n🆔 **الـمـعـرف:** `{target_user.id}`\n🎖️ **الـرتبـة:** {t_rank}\n🏆 **الـلـقـب:** {t_title}\n📈 **الـمـشاركات:** {t_count} رسالة\n🕒 **الـتـوقيـت:** {t_time}\n🛡️ **الـحـالـة:** سـجل نظيف ✅\n━━━━━━━━━━━━━━"
             )
+
             await event.reply(kashf_text)
 
     # تحقق من صلاحيات الإدارة للأوامر القادمة
@@ -261,7 +248,7 @@ async def main_handler(event):
     if message == "اضف رد":
         try:
             async with client.conversation(event.chat_id, timeout=60) as conv:
-                await conv.send_message("📝 **أهلاً بك يا مدير!**\nأرسل الآن **الكلمة** التي تريد الرد عليها:")
+                await conv.send_message("📝 **| مـرحـباً بـك يـا عطوفة الـمـديـر**\n━━━━━━━━━━━━━━\n✨ أرسل الآن **الكلمة أو الجملة** التي تود\nأن يستجيب لها النظام آلياً:\n━━━━━━━━━━━━━━")
                 
                 # نستخدم حلقة للتأكد من أن الرد من نفس المشرف الذي بدأ الأمر
                 while True:
@@ -270,7 +257,7 @@ async def main_handler(event):
                         word_to_save = response_word.text
                         break
                 
-                await conv.send_message(f"✅ ممتاز، الآن أرسل **الرد** (نص، صورة، ملصق) لـ '{word_to_save}':")
+                await conv.send_message(f"✅ **تم استلام الكلمة:** `{word_to_save}`\n━━━━━━━━━━━━━━\n🎬 الآن، أرسل **الرد الاداري** الذي تريده\n**(نص، صورة، ملصق، أو حتى متحركة):**\n━━━━━━━━━━━━━━")
                 
                 while True:
                     response_val = await conv.get_response()
@@ -279,10 +266,10 @@ async def main_handler(event):
                         db.set_reply(chat_id, word_to_save, response_val.text if response_val.text else "", media_to_save)
                         break
                 
-                await conv.send_message("تمت اضافة الرد بنجاح يا مديرنا الغالي 👑")
+                await conv.send_message("👑 **| تـم تـحديث الـبروتوكول بـنجاح**\n━━━━━━━━━━━━━━\n💎 **تم حفظ الرد الجديد بنجاح.**\n🛡️ النظام الآن في حالة تأهب للرد على الجميع.\n━━━━━━━━━━━━━━")
         except asyncio.TimeoutError:
-            await event.reply("⚠️ انتهى الوقت، يرجى إعادة المحاولة.")
-
+            await event.reply("⚠️ **| عـذراً يـا مـلك..**\nانتهى وقت الجلسة، يرجى إعادة المحاولة.")
+            
     # --- أمر حذف رد الجديد (إصلاح مشكلة chat_id) ---
     if message == "حذف رد":
         try:
@@ -327,52 +314,54 @@ async def main_handler(event):
     # دمج أول كلمتين للتعرف على أوامر الفراغ (مثل: الغاء الكتم)
     cmd_2nd = f"{parts[0]} {parts[1]}" if len(parts) >= 2 else cmd
     
-    target_id, target_user = await get_target_info(event, parts)
+        target_id, target_user = await get_target_info(event, parts).   
+        if target_id:
+        
+            if target_id == OWNER_ID and sender_id != OWNER_ID:
+            anas_responses = [
+                "يا حيّ من لفتنا ترحيبةٍ تبري العلة.. سليل المجد والقاف والناس تدله. 👑",
+                "القمة لا تزدحم بالأقدام، بل تزدحم بالعقول التي صَنعتها. ✨",
+                "أنا لا أتبع القوانين، أنا أصنعها. – يوليوس قيصر. 🛡️",
+                "لا تعامل الناس بذكائك، بل عاملهم بأخلاقك، فبالذكاء تملك عقولهم وبالأخلاق تملك قلوبهم. 💎",
+                "نورت إمبراطوريتك يا مؤسس النظام، الأكواد تنحني أمام صانعها. 🎩",
+                "السكوت في حضرة الكبار هيبة، والرد على أنس مغامرة غير محسوبة. 🤐",
+                "عزّي لغيرك لا نوى يمسّ هيبتك.. ما درى إنك ملك والأمر بيدك وقبضتك. ⚔️",
+                "النصر لا يُمنح بل يُنتزع، وأنا انتزعت القمة. 🤴",
+                "اجعل صمتك لغة، وإنجازك صوتاً، وسيعرف العالم من أنت دون كلام. ⚙️",
+                "الملك حضر! كفوا الأيدي عن العبث، فالحصانة الملكية فُعلت تلقائياً. 🛡️👑"
+            ]
+            return await event.respond(f"👑 **| 👑 بـروتوكـول الـسـيـادة الـعـلـيـا 👑**\n━━━━━━━━━━━━━━\n✨ {random.choice(anas_responses)}\n\n👤 **الـمـطور:** [ أنس الـسلايطة ]\n━━━━━━━━━━━━━━")
 
-    if target_id:
-        if target_id == OWNER_ID and sender_id != OWNER_ID:
-            return await event.respond("⚠️ **توقف!** لا يمكن المساس بالسلطات العليا للمطور أنس.")
-
+        # بقية الأوامر تتبع شرط وجود target_id لكن خارج شرط الحصانة الملكية
         my_rank_val = db.get_rank_value(chat_id, sender_id)
         target_rank_val = db.get_rank_value(chat_id, target_id)
         t_name = target_user.first_name if target_user else str(target_id)
-
-        # --- قسم الرفع والتنزيل المطور (يدعم اليوزر والآيدي بشكل صحيح) ---
         rank_map = {"ادمن": 2, "مدير": 3, "مالك": 4, "مميز": 1}
-        
+
         if cmd == "رفع":
-            # البحث عن اسم الرتبة في كلمات الرسالة
-            rank_name = None
-            for p in parts:
-                if p in rank_map:
-                    rank_name = p
-                    break
-            
-            if rank_name and target_id:
+            rank_name = next((p for p in parts if p in rank_map), None)
+            if rank_name:
                 if sender_id != OWNER_ID and my_rank_val <= rank_map[rank_name]:
                     return await event.respond("❌ لا تملك صلاحية لرفع هذه الرتبة.")
                 for gid in ALLOWED_GROUPS: 
                     db.set_rank(str(gid), target_id, rank_name)
-                return await event.respond(f"👑 تم منح رتبة **{rank_name}** لـ {t_name} في كل الممالك.")
+                return await event.respond(f"👑 **| 👑 إرادة مـلـكـيـة سـامـيـة 👑**\n━━━━━━━━━━━━━━\n📝 **الـقـرار:** تـرقيـة مـسـتـخـدم\n👤 **الـمـسـتـفيد:** {t_name}\n🎖️ **الـرتبـة الـجـديـدة:** {rank_name}\n━━━━━━━━━━━━━━")
 
-        elif cmd == "تنزيل" and target_id:
+        elif cmd == "تنزيل":
             if sender_id != OWNER_ID and my_rank_val <= target_rank_val:
                 return await event.respond("❌ لا يمكنك تنزيل من هو برتبتك أو أعلى منك.")
             for gid in ALLOWED_GROUPS: 
                 db.set_rank(str(gid), target_id, "عضو")
-            return await event.respond(f"📉 تم تنزيل {t_name} لمرتبة عضو.")
-            
-
-        # --- قسم العقوبات والإنذارات (يدعم الفراغ) ---
-        from telethon.tl.functions.channels import EditBannedRequest
-        from telethon.tl.types import ChatBannedRights
+            return await event.respond(f"👑 **| 👑 قـرار إعـفـاء إداري 👑**\n━━━━━━━━━━━━━━\n📝 **الـقـرار:** سـحب الـصـلاحـيات\n👤 **الـمـسـتـخدم:** {t_name}\n📉 **الـرتبـة:** عـضـو\n━━━━━━━━━━━━━━")
 
         async def apply_penalty(rights, action_name):
             try:
+                from telethon.tl.functions.channels import EditBannedRequest
                 await client(EditBannedRequest(event.chat_id, target_id, rights))
-                await event.respond(f"✅ تم **{action_name}** المستخدم: {t_name}")
+                await event.respond(f"⚖️ **| ⚖️ مـحـكـمـة مـونـوبـولي الـعـلـيـا ⚖️**\n━━━━━━━━━━━━━━\n🛠️ **الإجـراء:** {action_name}\n👤 **الـمـسـتهـدف:** {t_name}\n✅ **الـحـالـة:** تـم تـنفيـذ الـحـكم\n━━━━━━━━━━━━━━")
             except Exception as e: 
                 await event.respond(f"❌ فشل التنفيذ: {e}")
+
 
         # أوامر الإنذار
         if cmd == "انذار":
