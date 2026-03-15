@@ -4,7 +4,9 @@ import re
 import asyncio
 from datetime import datetime, timedelta
 from telethon import TelegramClient, events, Button, types
+from telethon.tl.types import ChatBannedRights  # هذا السطر الذي سيحل مشكلة الكتم والحظر
 from database import db
+
 # استدعاء المسار من القاعدة مباشرة
 PROTECT_DIR = db.base_dir 
 
