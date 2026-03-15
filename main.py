@@ -314,7 +314,7 @@ async def main_handler(event):
     # دمج أول كلمتين للتعرف على أوامر الفراغ (مثل: الغاء الكتم)
     cmd_2nd = f"{parts[0]} {parts[1]}" if len(parts) >= 2 else cmd
     
-        target_id, target_user = await get_target_info(event, parts).   
+        target_id, target_user = await get_target_info(event, parts) 
     if target_id:     
         if target_id == OWNER_ID and sender_id != OWNER_ID:
             anas_responses = [
