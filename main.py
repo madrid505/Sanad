@@ -153,6 +153,49 @@ async def reactive_replies(event):
     elif msg_text == "تصبح على خير":
         await event.reply(f"وأنت من أهل الخير يا {user_title}، أحلام سعيدة ونوم العوافي 💤")
 
+# --- [نظام الرادار الملكي: كشف التغييرات خلف الكواليس] ---
+@client.on(events.Raw(types.UpdateUser))
+async def user_update_radar(event):
+    try:
+        user_id = event.user_id
+        # جلب البيانات الحالية من تليجرام
+        user_full = await client.get_entity(user_id)
+        current_name = f"{user_full.first_name} {user_full.last_name or ''}".strip()
+        current_username = f"@{user_full.username}" if user_full.username else "لا يوجد"
+
+        # جلب البيانات القديمة من قاعدة البيانات
+        old_data = db.get_user_from_radar(user_id)
+
+        if old_data:
+            old_name, old_username = old_data
+            
+            # 1. فحص تغيير الاسم
+            if current_name != old_name:
+                msg = (f"🚨 **| رادار كـشـف الـهـويـة (تغيير اسم)**\n"
+                       f"━━━━━━━━━━━━━━\n"
+                       f"👤 **المستخدم:** [{current_name}](tg://user?id={user_id})\n"
+                       f"🆔 **الآيدي:** `{user_id}`\n\n"
+                       f"📜 **الاسم القديم:** {old_name}\n"
+                       f"✨ **الاسم الجديد:** {current_name}\n"
+                       f"━━━━━━━━━━━━━━")
+                for gid in ALLOWED_GROUPS: await client.send_message(gid, msg)
+
+            # 2. فحص تغيير اليوزر
+            elif current_username != old_username:
+                msg = (f"🚨 **| رادار كـشـف الـهـويـة (تغيير معرف)**\n"
+                       f"━━━━━━━━━━━━━━\n"
+                       f"👤 **المستخدم:** {current_name}\n"
+                       f"🆔 **الآيدي:** `{user_id}`\n\n"
+                       f"🔗 **المعرف القديم:** {old_username}\n"
+                       f"✨ **المعرف الجديد:** {current_username}\n"
+                       f"━━━━━━━━━━━━━━")
+                for gid in ALLOWED_GROUPS: await client.send_message(gid, msg)
+
+        # تحديث قاعدة البيانات بالبيانات الجديدة دائماً ليكون الرادار جاهزاً
+        db.sync_user_to_radar(user_id, current_name, current_username)
+    except: pass
+        
+
 async def get_target_info(event, parts):
     target_id = None
     target_user = None
