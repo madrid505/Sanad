@@ -16,7 +16,7 @@ API_HASH = 'ccb195afa05973cf544600ad3c313b84'
 # تأكد دائماً أن التوكن بين علامتي التنصيص بدون أي مسافات إضافية
 BOT_TOKEN = '8654727197:AAGM3TkKoR_PImPmQ-rSe2lOcITpGMtTkxQ'
 OWNER_ID = 5010882230
-ALLOWED_GROUPS = [-1002695848824, -1003721123319, -1002052564369]
+ALLOWED_GROUPS = [-1003791330278, -1003721123319, -1002052564369]
 
 # تشغيل العميل (Client) - تم تغيير اسم الجلسة هنا لحل مشكلة السجل (Logs)
 client = TelegramClient('Monopoly_Final_Fix_V1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
