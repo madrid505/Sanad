@@ -153,47 +153,7 @@ async def reactive_replies(event):
     elif msg_text == "تصبح على خير":
         await event.reply(f"وأنت من أهل الخير يا {user_title}، أحلام سعيدة ونوم العوافي 💤")
 
-# --- [نظام الرادار الملكي: كشف التغييرات خلف الكواليس] ---
-@client.on(events.Raw(types.UpdateUser))
-async def user_update_radar(event):
-    try:
-        user_id = event.user_id
-        # جلب البيانات الحالية من تليجرام
-        user_full = await client.get_entity(user_id)
-        current_name = f"{user_full.first_name} {user_full.last_name or ''}".strip()
-        current_username = f"@{user_full.username}" if user_full.username else "لا يوجد"
 
-        # جلب البيانات القديمة من قاعدة البيانات
-        old_data = db.get_user_from_radar(user_id)
-
-        if old_data:
-            old_name, old_username = old_data
-            
-            # 1. فحص تغيير الاسم
-            if current_name != old_name:
-                msg = (f"🚨 **| رادار كـشـف الـهـويـة (تغيير اسم)**\n"
-                       f"━━━━━━━━━━━━━━\n"
-                       f"👤 **المستخدم:** [{current_name}](tg://user?id={user_id})\n"
-                       f"🆔 **الآيدي:** `{user_id}`\n\n"
-                       f"📜 **الاسم القديم:** {old_name}\n"
-                       f"✨ **الاسم الجديد:** {current_name}\n"
-                       f"━━━━━━━━━━━━━━")
-                for gid in ALLOWED_GROUPS: await client.send_message(gid, msg)
-
-            # 2. فحص تغيير اليوزر
-            elif current_username != old_username:
-                msg = (f"🚨 **| رادار كـشـف الـهـويـة (تغيير معرف)**\n"
-                       f"━━━━━━━━━━━━━━\n"
-                       f"👤 **المستخدم:** {current_name}\n"
-                       f"🆔 **الآيدي:** `{user_id}`\n\n"
-                       f"🔗 **المعرف القديم:** {old_username}\n"
-                       f"✨ **المعرف الجديد:** {current_username}\n"
-                       f"━━━━━━━━━━━━━━")
-                for gid in ALLOWED_GROUPS: await client.send_message(gid, msg)
-
-        # تحديث قاعدة البيانات بالبيانات الجديدة دائماً ليكون الرادار جاهزاً
-        db.sync_user_to_radar(user_id, current_name, current_username)
-    except: pass
         
 
 async def get_target_info(event, parts):
@@ -509,78 +469,48 @@ client.loop.create_task(monopoly_radar.start_radar_system(client, ALLOWED_GROUPS
 
 
 # =========================================================
-# --- [نظام رادار كشف الأسماء واليوزر (خلف الكواليس)] ---
+# --- [نظام رادار مونوبولي المطور: رؤية مزدوجة] ---
 # =========================================================
 
 @client.on(events.Raw(types.UpdateUser))
 async def identity_tracker_radar(event):
-    """هذا المعالج يراقب تغييرات البروفايل (اسم/يوزر) لحظياً"""
+    """العين الأولى: مراقبة خلف الكواليس (تحديثات البروفايل)"""
     try:
         user_id = event.user_id
-        # جلب البيانات الحالية من تليجرام مباشرة
         user_full = await client.get_entity(user_id)
         current_name = f"{user_full.first_name} {user_full.last_name or ''}".strip()
         current_username = f"@{user_full.username}" if user_full.username else "لا يوجد"
-
-        # المقارنة مع ما هو مخزن في قاعدة بياناتك
+        
         old_data = db.get_user_from_radar(user_id)
-
         if old_data:
             old_name, old_username = old_data
             msg = None
-            
-            # 1. فحص تغيير الاسم
             if str(current_name) != str(old_name):
-                msg = (f"🚨 **| رادار كـشـف الـهـويـة (تغيير اسم)**\n"
-                       f"━━━━━━━━━━━━━━\n"
-                       f"👤 **المستخدم:** [{current_name}](tg://user?id={user_id})\n"
-                       f"🆔 **الآيدي:** `{user_id}`\n\n"
-                       f"📜 **الاسم القديم:** {old_name}\n"
-                       f"✨ **الاسم الجديد:** {current_name}\n"
-                       f"━━━━━━━━━━━━━━")
-
-            # 2. فحص تغيير المعرف (Username @)
+                msg = f"🚨 **| رادار الهوية (تغيير اسم)**\n━━━━━━━━━━━━━━\n👤 **المستخدم:** [{current_name}](tg://user?id={user_id})\n📜 **القديم:** {old_name}\n✨ **الجديد:** {current_name}\n━━━━━━━━━━━━━━"
             elif str(current_username) != str(old_username):
-                msg = (f"🚨 **| رادار كـشـف الـهـويـة (تغيير مـعرف @)**\n"
-                       f"━━━━━━━━━━━━━━\n"
-                       f"👤 **المستخدم:** {current_name}\n"
-                       f"🆔 **الآيدي:** `{user_id}`\n\n"
-                       f"🔗 **المعرف القديم:** {old_username}\n"
-                       f"✨ **المعرف الجديد:** {current_username}\n"
-                       f"━━━━━━━━━━━━━━")
-
-            # إرسال التنبيه للمجموعات وتحديث القاعدة
+                msg = f"🚨 **| رادار الهوية (تغيير معرف)**\n━━━━━━━━━━━━━━\n👤 **المستخدم:** {current_name}\n🔗 **القديم:** {old_username}\n✨ **الجديد:** {current_username}\n━━━━━━━━━━━━━━"
+            
             if msg:
-                for gid in ALLOWED_GROUPS: 
+                for gid in ALLOWED_GROUPS:
                     try: await client.send_message(int(gid), msg)
                     except: continue
-                db.sync_user_to_radar(user_id, current_name, current_username)
-        else:
-            # تسجيل المستخدم لأول مرة إذا لم يكن موجوداً
-            db.sync_user_to_radar(user_id, current_name, current_username)
-    except:
-        pass
+        db.sync_user_to_radar(user_id, current_name, current_username)
+    except: pass
 
-# دالة الجرد الشامل: تعمل فور التشغيل لبناء قاعدة بيانات بالأسماء الحالية
 async def identity_full_sync():
-    print("⏳ جاري جرد الأسماء لنظام كشف الهوية...")
+    """العين الثانية: الجرد الشامل عند الإقلاع"""
+    print("⏳ جاري جرد الأسماء الملكي...", flush=True)
     for gid in ALLOWED_GROUPS:
         try:
             async for user in client.iter_participants(gid):
                 if user.bot: continue
-                fn = f"{user.first_name} {user.last_name or ''}".strip()
-                un = f"@{user.username}" if user.username else "لا يوجد"
-                db.sync_user_to_radar(user.id, fn, un)
+                db.sync_user_to_radar(user.id, f"{user.first_name} {user.last_name or ''}".strip(), f"@{user.username}" if user.username else "لا يوجد")
         except: continue
-    
-    # هذه الرسالة ستصلك على الخاص فور انتهاء البوت من الجرد
-    try:
-        await client.send_message(OWNER_ID, "👑 **يا إمبراطور: رادار كشف الأسماء جاهز الآن!**")
+    try: await client.send_message(OWNER_ID, "👑 **يا إمبراطور: الرادار المطور جاهز الآن!**")
     except: pass
-    print("✅ اكتمل جرد الأسماء.")
+    print("✅ اكتمل الجرد الإمبراطوري بنجاح.", flush=True)
 
-# --- سطر التشغيل (تأكد من وضعه قبل سطر disconnect) ---
+# --- أوامر التشغيل النهائية ---
 client.loop.create_task(identity_full_sync())
-                                  
+print("--- [Monopoly System Online - V7.5 Royal Edition] ---", flush=True)
 client.run_until_disconnected()
-    
