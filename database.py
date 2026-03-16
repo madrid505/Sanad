@@ -15,7 +15,7 @@ class BotDB:
         self.create_tables()
 
     def create_tables(self):
-        # إنشاء كافة الجداول المطلوبة من app.py دفعة واحدة
+        # إنشاء كافة الجداول المطلوبة دفعة واحدة
         self.cursor.execute('CREATE TABLE IF NOT EXISTS ranks (gid TEXT, uid TEXT, rank TEXT, PRIMARY KEY(gid, uid))')
         self.cursor.execute('CREATE TABLE IF NOT EXISTS locks (gid TEXT, feature TEXT, status INTEGER DEFAULT 0, PRIMARY KEY(gid, feature))')
         self.cursor.execute('CREATE TABLE IF NOT EXISTS replies (gid TEXT, word TEXT, reply TEXT, media_id BLOB DEFAULT NULL, PRIMARY KEY(gid, word))')
@@ -23,7 +23,7 @@ class BotDB:
         self.cursor.execute('CREATE TABLE IF NOT EXISTS activity (gid TEXT, uid TEXT, count INTEGER DEFAULT 0, PRIMARY KEY(gid, uid))')
         self.cursor.execute('CREATE TABLE IF NOT EXISTS warns (gid TEXT, uid TEXT, count INTEGER DEFAULT 0, PRIMARY KEY(gid, uid))')
         
-        # --- إضافة جدول الرادار الملكي (جديد) ---
+        # جدول الرادار الملكي
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS users_radar (
             uid TEXT PRIMARY KEY, 
             full_name TEXT, 
@@ -31,7 +31,7 @@ class BotDB:
         )''')
         self.conn.commit()
 
-    # --- إدارة الرتب (تستخدم في رفع/تنزيل/كشف) ---
+    # --- 1. إدارة الرتب ---
     def get_rank(self, gid, uid):
         self.cursor.execute("SELECT rank FROM ranks WHERE gid=? AND uid=?", (str(gid), str(uid)))
         row = self.cursor.fetchone()
@@ -46,7 +46,7 @@ class BotDB:
         ranks_order = {"عضو": 0, "مميز": 1, "ادمن": 2, "مدير": 3, "مالك": 4, "المنشئ": 5}
         return ranks_order.get(rank, 0)
 
-    # --- إدارة التفاعل (تستخدم في المتفاعلين/رتبتي) ---
+    # --- 2. إدارة التفاعل (التصفير الأسبوعي) ---
     def increase_messages(self, gid, uid):
         self.cursor.execute("INSERT OR IGNORE INTO activity (gid, uid, count) VALUES (?, ?, 0)", (str(gid), str(uid)))
         self.cursor.execute("UPDATE activity SET count = count + 1 WHERE gid=? AND uid=?", (str(gid), str(uid)))
@@ -61,7 +61,7 @@ class BotDB:
         self.cursor.execute("SELECT uid, count FROM activity WHERE gid=? ORDER BY count DESC LIMIT ?", (str(gid), limit))
         return self.cursor.fetchall()
 
-    # --- إدارة الردود المبرمجة (تستخدم في أضف رد/حذف رد) ---
+    # --- 3. إدارة الردود المبرمجة ---
     def set_reply(self, gid, word, reply_text, media_id=None):
         m_id = pickle.dumps(media_id) if media_id else None
         self.cursor.execute("INSERT OR REPLACE INTO replies (gid, word, reply, media_id) VALUES (?, ?, ?, ?)", (str(gid), word, reply_text, m_id))
@@ -78,7 +78,7 @@ class BotDB:
             return rep_text, media
         return None
 
-    # --- إدارة الإنذارات (تستخدم في أمر انذار) ---
+    # --- 4. إدارة الإنذارات والعقوبات ---
     def add_warn(self, gid, uid):
         self.cursor.execute("INSERT OR IGNORE INTO warns (gid, uid, count) VALUES (?, ?, 0)", (str(gid), str(uid)))
         self.cursor.execute("UPDATE warns SET count = count + 1 WHERE gid=? AND uid=?", (str(gid), str(uid)))
@@ -91,24 +91,37 @@ class BotDB:
 
     def get_warns(self, gid, uid):
         self.cursor.execute("SELECT count FROM warns WHERE gid=? AND uid=?", (str(gid), str(uid)))
-        row = self.fetchone()
+        row = self.cursor.fetchone()
         return row[0] if row else 0
 
-    # --- الإعدادات العامة (ترحيب/قفل) ---
+    # --- 5. إدارة الأقفال (Locks) ---
+    def set_lock(self, gid, feature, status):
+        """status: 1 للفتح، 0 للقفل"""
+        self.cursor.execute("INSERT OR REPLACE INTO locks (gid, feature, status) VALUES (?, ?, ?)", (str(gid), feature, status))
+        self.conn.commit()
+
+    def is_locked(self, gid, feature):
+        self.cursor.execute("SELECT status FROM locks WHERE gid=? AND feature=?", (str(gid), feature))
+        row = self.cursor.fetchone()
+        return row[0] == 1 if row else False
+
+    # --- 6. الإعدادات العامة (الترحيب) ---
+    def set_setting(self, gid, key, value):
+        self.cursor.execute("INSERT OR REPLACE INTO settings (gid, key, value) VALUES (?, ?, ?)", (str(gid), key, value))
+        self.conn.commit()
+
     def get_setting(self, gid, key):
         self.cursor.execute("SELECT value FROM settings WHERE gid=? AND key=?", (str(gid), key))
         row = self.cursor.fetchone()
         return row[0] if row else "off"
 
-    # --- نظام الرادار الملكي (كشف الأسماء واليوزرات - جديد) ---
+    # --- 7. نظام الرادار الملكي ---
     def sync_user_to_radar(self, uid, full_name, username):
-        """تخزين أو تحديث بيانات المستخدم في الرادار"""
         self.cursor.execute("INSERT OR REPLACE INTO users_radar (uid, full_name, username) VALUES (?, ?, ?)", 
                             (str(uid), full_name, username))
         self.conn.commit()
 
     def get_user_from_radar(self, uid):
-        """جلب البيانات المخزنة للمقارنة"""
         self.cursor.execute("SELECT full_name, username FROM users_radar WHERE uid=?", (str(uid),))
         return self.cursor.fetchone()
 
