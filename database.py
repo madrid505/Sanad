@@ -115,14 +115,16 @@ class BotDB:
         row = self.cursor.fetchone()
         return row[0] if row else "off"
 
-    # --- 7. نظام الرادار الملكي ---
+        # --- 7. نظام الرادار الملكي (النسخة المحصنة) ---
     def sync_user_to_radar(self, uid, full_name, username):
+        """تخزين البيانات مع التأكد من تحويل الآيدي لنص لضمان دقة المقارنة"""
         self.cursor.execute("INSERT OR REPLACE INTO users_radar (uid, full_name, username) VALUES (?, ?, ?)", 
-                            (str(uid), full_name, username))
+                            (str(uid), str(full_name), str(username)))
         self.conn.commit()
 
     def get_user_from_radar(self, uid):
+        """جلب البيانات مع تحويل الآيدي لضمان المطابقة"""
         self.cursor.execute("SELECT full_name, username FROM users_radar WHERE uid=?", (str(uid),))
         return self.cursor.fetchone()
-
+    
 db = BotDB()
