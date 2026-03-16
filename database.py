@@ -22,6 +22,13 @@ class BotDB:
         self.cursor.execute('CREATE TABLE IF NOT EXISTS settings (gid TEXT, key TEXT, value TEXT, PRIMARY KEY(gid, key))')
         self.cursor.execute('CREATE TABLE IF NOT EXISTS activity (gid TEXT, uid TEXT, count INTEGER DEFAULT 0, PRIMARY KEY(gid, uid))')
         self.cursor.execute('CREATE TABLE IF NOT EXISTS warns (gid TEXT, uid TEXT, count INTEGER DEFAULT 0, PRIMARY KEY(gid, uid))')
+        
+        # --- إضافة جدول الرادار الملكي (جديد) ---
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS users_radar (
+            uid TEXT PRIMARY KEY, 
+            full_name TEXT, 
+            username TEXT
+        )''')
         self.conn.commit()
 
     # --- إدارة الرتب (تستخدم في رفع/تنزيل/كشف) ---
@@ -84,7 +91,7 @@ class BotDB:
 
     def get_warns(self, gid, uid):
         self.cursor.execute("SELECT count FROM warns WHERE gid=? AND uid=?", (str(gid), str(uid)))
-        row = self.cursor.fetchone()
+        row = self.fetchone()
         return row[0] if row else 0
 
     # --- الإعدادات العامة (ترحيب/قفل) ---
@@ -92,5 +99,17 @@ class BotDB:
         self.cursor.execute("SELECT value FROM settings WHERE gid=? AND key=?", (str(gid), key))
         row = self.cursor.fetchone()
         return row[0] if row else "off"
+
+    # --- نظام الرادار الملكي (كشف الأسماء واليوزرات - جديد) ---
+    def sync_user_to_radar(self, uid, full_name, username):
+        """تخزين أو تحديث بيانات المستخدم في الرادار"""
+        self.cursor.execute("INSERT OR REPLACE INTO users_radar (uid, full_name, username) VALUES (?, ?, ?)", 
+                            (str(uid), full_name, username))
+        self.conn.commit()
+
+    def get_user_from_radar(self, uid):
+        """جلب البيانات المخزنة للمقارنة"""
+        self.cursor.execute("SELECT full_name, username FROM users_radar WHERE uid=?", (str(uid),))
+        return self.cursor.fetchone()
 
 db = BotDB()
