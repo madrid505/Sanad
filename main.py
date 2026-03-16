@@ -551,37 +551,36 @@ async def identity_tracker_radar(event):
     except: pass
 
 async def identity_full_sync():
-    """الجرد الدوري الذكي: نمط السرعة القصوى مع الحفاظ على استجابة الأوامر"""
-    try: await client.send_message(OWNER_ID, "🚀 **الرادار الإمبراطوري يعمل الآن بنمط 'السرعة المتوازنة'.**")
+    """الجرد الموزع: يمنع التعليق تماماً عبر توزيع الجهد لضمان سلاسة الرد القصوى"""
+    try: await client.send_message(OWNER_ID, "🚀 **الرادار الإمبراطوري يعمل بنمط 'التوزيع السلس'.. وداعاً للتعليق!**")
     except: pass
     
     while True:
-        print("⏳ تبدأ الآن دورية الرادار (10 آلاف عضو)...", flush=True)
+        print("⏳ تبدأ الآن دورية الرادار السلسة (10 آلاف عضو)...", flush=True)
         for gid in ALLOWED_GROUPS:
             try:
-                count = 0
                 async for user in client.iter_participants(gid):
                     if user.bot: continue
                     
                     fn = f"{user.first_name} {user.last_name or ''}".strip()
                     un = f"@{user.username}" if user.username else "لا يوجد"
                     
+                    # فحص الرادار ومقارنة الأسماء
                     await check_user_radar(user.id, fn, un)
                     
-                    count += 1
-                    # كل 100 عضو، توقف لربع ثانية فقط (مثل رمشة العين) ليمر الرد على الرسائل
-                    if count % 100 == 0:
-                        await asyncio.sleep(0.2) 
+                    # --- السر في فك التعليق ---
+                    # التوقف لمدة 0.1 ثانية بعد كل عضو يمنح البوت فرصة لمعالجة الرسائل الواردة فوراً
+                    await asyncio.sleep(0.1) 
                         
             except Exception as e:
                 print(f"⚠️ تنبيه: تعثر الرادار في مجموعة {gid}: {e}")
                 continue
         
-        print("✅ انتهت الجولة بنجاح وسرعة. الدورية القادمة بعد 10 دقائق.", flush=True)
-        # 10 دقائق (600 ثانية) هي الوقت المثالي لـ 10 آلاف عضو
-        await asyncio.sleep(600)
+        print("✅ انتهت الجولة الشاملة بنجاح. الدورية القادمة بعد 15 دقيقة.", flush=True)
+        # الاستراحة بين الدوريات (15 دقيقة) لراحة المعالج والحساب
+        await asyncio.sleep(900)
 
-# --- أوامر التشغيل النهائية ---
+# --- أوامر التشغيل النهائية لضمان عدم التكرار ---
 client.loop.create_task(identity_full_sync())
-print("--- [Monopoly System Online - V8.6 Balanced Mode] ---", flush=True)
+print("--- [Monopoly System Online - V8.8 Ultra-Smooth Mode] ---", flush=True)
 client.run_until_disconnected()
