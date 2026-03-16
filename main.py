@@ -582,3 +582,5 @@ async def identity_full_sync():
 # --- سطر التشغيل (تأكد من وضعه قبل سطر disconnect) ---
 client.loop.create_task(identity_full_sync())
                                   
+client.run_until_disconnected()
+    
