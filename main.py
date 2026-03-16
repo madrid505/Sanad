@@ -505,22 +505,33 @@ async def identity_tracker_radar(event):
     except: pass
 
 async def identity_full_sync():
-    """الجرد الذكي: يحفظ الأسماء الجديدة فقط ولا يلمس المسجلة مسبقاً"""
-    print("⏳ جاري جرد الأسماء الملكي...", flush=True)
-    for gid in ALLOWED_GROUPS:
-        try:
-            async for user in client.iter_participants(gid):
-                if user.bot: continue
-                # التعديل الجوهري: إذا العضو موجود لا نحدث بياناته لكي لا يضيع الاسم القديم
-                if not db.get_user_from_radar(user.id):
-                    db.sync_user_to_radar(user.id, f"{user.first_name} {user.last_name or ''}".strip(), f"@{user.username}" if user.username else "لا يوجد")
-        except: continue
-    
-    try: await client.send_message(OWNER_ID, "👑 **يا إمبراطور: الرادار المطور جاهز للعمل!**")
+    """الجرد الدوري الذكي: دورية تفتيشية كل 5 دقائق لصيد التغييرات خلف الكواليس"""
+    # إرسال رسالة التشغيل الأولى لمرة واحدة فقط
+    try: await client.send_message(OWNER_ID, "👑 **يا إمبراطور: نظام الدورية الرادارية انطلق الآن!**")
     except: pass
-    print("✅ اكتمل الجرد الإمبراطوري بنجاح.", flush=True)
+    
+    while True:
+        print("⏳ تبدأ الآن دورية الرادار الملكي لتفتيش الأسماء...", flush=True)
+        for gid in ALLOWED_GROUPS:
+            try:
+                async for user in client.iter_participants(gid):
+                    if user.bot: continue
+                    
+                    fn = f"{user.first_name} {user.last_name or ''}".strip()
+                    un = f"@{user.username}" if user.username else "لا يوجد"
+                    
+                    # الفحص: نرسل البيانات لمحرك الرادار
+                    # إذا كان الاسم جديداً سيحفظه، وإذا تغير سيعطي تنبيهاً
+                    await check_user_radar(user.id, fn, un)
+            except Exception as e:
+                print(f"⚠️ خطأ أثناء تفتيش المجموعة {gid}: {e}")
+                continue
+        
+        print("✅ انتهت جولة التفتيش. الدورية القادمة بعد 5 دقائق.", flush=True)
+        # الانتظار لمدة 300 ثانية (5 دقائق) قبل بدء الدورية التالية
+        await asyncio.sleep(300)
 
 # --- أوامر التشغيل النهائية لضمان عدم التكرار ---
 client.loop.create_task(identity_full_sync())
-print("--- [Monopoly System Online - V8.0] ---", flush=True)
+print("--- [Monopoly System Online - V8.5 Surveillance Mode] ---", flush=True)
 client.run_until_disconnected()
