@@ -455,7 +455,26 @@ async def main_handler(event):
             await target_msg.delete()
             try: await event.delete()
             except: pass
-                
+    # --- [نظام الإذاعة الملكي الشامل] ---
+    if message == "اذاعة" and event.is_reply:
+        if not await check_privilege(event, "مدير"):
+            return
+            
+        reply_msg = await event.get_reply_message()
+        broadcast_count = 0
+        status_msg = await event.reply("🚀 **جاري بدء الإذاعة الملكية لجميع المجموعات...**")
+        
+        for gid in ALLOWED_GROUPS:
+            try:
+                await client.send_message(int(gid), reply_msg)
+                broadcast_count += 1
+                await asyncio.sleep(0.5) 
+            except Exception as e:
+                print(f"فشل الإرسال للمجموعة {gid}: {e}")
+
+        await status_msg.edit(f"✅ **تمت الإذاعة بنجاح!**\n━━━━━━━━━━━━━━\n📢 **المجموعات المستلمة:** {broadcast_count}\n🛡️ **المنفذ:** ༺۝༒♛ 🅰🅽🅰🆂 ♛༒۝༻\n━━━━━━━━━━━━━━")
+        return # لإنهاء المعالجة هنا
+        
     # 8. فتح لوحة الأوامر
     if message == "امر":
         buttons_list = [
