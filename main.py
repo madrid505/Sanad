@@ -551,33 +551,37 @@ async def identity_tracker_radar(event):
     except: pass
 
 async def identity_full_sync():
-    """الجرد الدوري الذكي: دورية تفتيشية كل 5 دقائق لصيد التغييرات خلف الكواليس"""
-    # إرسال رسالة التشغيل الأولى لمرة واحدة فقط
-    try: await client.send_message(OWNER_ID, "👑 **يا إمبراطور: نظام الدورية الرادارية انطلق الآن!**")
+    """الجرد الدوري الذكي: نمط السرعة القصوى مع الحفاظ على استجابة الأوامر"""
+    try: await client.send_message(OWNER_ID, "🚀 **الرادار الإمبراطوري يعمل الآن بنمط 'السرعة المتوازنة'.**")
     except: pass
     
     while True:
-        print("⏳ تبدأ الآن دورية الرادار الملكي لتفتيش الأسماء...", flush=True)
+        print("⏳ تبدأ الآن دورية الرادار (10 آلاف عضو)...", flush=True)
         for gid in ALLOWED_GROUPS:
             try:
+                count = 0
                 async for user in client.iter_participants(gid):
                     if user.bot: continue
                     
                     fn = f"{user.first_name} {user.last_name or ''}".strip()
                     un = f"@{user.username}" if user.username else "لا يوجد"
                     
-                    # الفحص: نرسل البيانات لمحرك الرادار
-                    # إذا كان الاسم جديداً سيحفظه، وإذا تغير سيعطي تنبيهاً
                     await check_user_radar(user.id, fn, un)
+                    
+                    count += 1
+                    # كل 100 عضو، توقف لربع ثانية فقط (مثل رمشة العين) ليمر الرد على الرسائل
+                    if count % 100 == 0:
+                        await asyncio.sleep(0.2) 
+                        
             except Exception as e:
-                print(f"⚠️ خطأ أثناء تفتيش المجموعة {gid}: {e}")
+                print(f"⚠️ تنبيه: تعثر الرادار في مجموعة {gid}: {e}")
                 continue
         
-        print("✅ انتهت جولة التفتيش. الدورية القادمة بعد 5 دقائق.", flush=True)
-        # الانتظار لمدة 300 ثانية (5 دقائق) قبل بدء الدورية التالية
-        await asyncio.sleep(300)
+        print("✅ انتهت الجولة بنجاح وسرعة. الدورية القادمة بعد 10 دقائق.", flush=True)
+        # 10 دقائق (600 ثانية) هي الوقت المثالي لـ 10 آلاف عضو
+        await asyncio.sleep(600)
 
-# --- أوامر التشغيل النهائية لضمان عدم التكرار ---
+# --- أوامر التشغيل النهائية ---
 client.loop.create_task(identity_full_sync())
-print("--- [Monopoly System Online - V8.5 Surveillance Mode] ---", flush=True)
+print("--- [Monopoly System Online - V8.6 Balanced Mode] ---", flush=True)
 client.run_until_disconnected()
