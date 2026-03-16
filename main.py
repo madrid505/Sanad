@@ -19,7 +19,7 @@ OWNER_ID = 5010882230
 ALLOWED_GROUPS = [-1003791330278, -1003721123319, -1002052564369]
 
 # تشغيل العميل (Client) - تم تغيير اسم الجلسة هنا لحل مشكلة السجل (Logs)
-client = TelegramClient('Monopoly_Final_Fix_V1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+client = TelegramClient('Monopoly_Final_Fix_v21', API_ID, API_HASH, sequential_updates=True).start(bot_token=BOT_TOKEN)
 
 # --- 1. دالة التصفير التلقائي الأسبوعي ---
 async def weekly_auto_reset():
