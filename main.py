@@ -487,42 +487,25 @@ client.loop.create_task(weekly_auto_reset())
 print("--- [Monopoly System Online - V7.0 Royal Edition] ---")
 print("--- [Status: Complete | Fixed Media & Delete Issues] ---")
 client.loop.create_task(monopoly_radar.start_radar_system(client, ALLOWED_GROUPS))
-# --- دالة الاحتفالية الكبرى (3 سنوات Monopoly) ---
-async def anniversary_celebration():
-    """بث رسالة السنوية الثالثة كل 15 دقيقة بشكل منظم"""
-    
-    celebration_text = (
-        "👑 **| مـلـحـمـة الـثـلاث سـنـوات**\n"
-        "✨ **السنوية الثالثة على تأسيس المجموعة**\n"
-        "━━━━━━━━━━━━━━\n\n"
-        "ثلاثة أعوام من المجد والتميز ✨\n\n"
-        "اليوم نحتفل بمرور 3 سنوات على التأسيس\n\n"
-        "لم نكن مجرد مجموعة بل كنا عائلة واحدة 💎\n\n"
-        "بنيناها بالحب والاحترام والمنافسة الشريفة\n\n"
-        "شكراً لكل من وضع بصمته وآمن برؤيتنا 🤴\n\n"
-        "القمة مكاننا الذي نعيش فيه دائماً\n\n"
-        "🌟 **كل عام وإمبراطوريتنا بألف خير** 🌟\n\n"
-        "━━━━━━━━━━━━━━\n"
-        "🔱 **مؤسس الإمبراطورية:**\n"
-        "༺۝༒♛ 🅰🅽🅰🆂 ♛༒۝༻\n\n"
-        "📅 **التاريخ:** 15 / 03 / 2026\n"
-        "⏳ **منذ:** 15 / 03 / 2023\n"
-        "━━━━━━━━━━━━━━"
-    )
-    
-    while True:
-        try:
-            # الانتظار لمدة 15 دقيقة (900 ثانية)
-            await asyncio.sleep(900) 
-            for chat_id in ALLOWED_GROUPS:
-                try:
-                    await client.send_message(chat_id, celebration_text)
-                except:
-                    continue
-        except Exception as e:
-            await asyncio.sleep(60)
 
-# تشغيل المهمة الاحتفالية في الخلفية
-client.loop.create_task(anniversary_celebration())
+
+
+# --- [دالة الجرد الشامل للأعضاء] ---
+async def full_members_sync():
+    print("⏳ بدأت عملية الجرد الشامل للأعضاء (الرادار الملكي)...")
+    for gid in ALLOWED_GROUPS:
+        try:
+            async for user in client.iter_participants(gid):
+                if user.bot: continue
+                full_n = f"{user.first_name} {user.last_name or ''}".strip()
+                u_name = f"@{user.username}" if user.username else "لا يوجد"
+                db.sync_user_to_radar(user.id, full_n, u_name)
+        except: continue
+    print("✅ تم اكتمال الجرد بنجاح، الرادار الآن يغطي جميع الأعضاء.")
+
+# تشغيل الجرد عند الإقلاع
+client.loop.create_task(full_members_sync())
+
+
 
 client.run_until_disconnected()
