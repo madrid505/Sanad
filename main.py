@@ -51,17 +51,26 @@ async def check_user_radar(user_id, current_name, current_username, chat_id=None
                 new_entry = f"• [{date_now}] اسم: {old_name} | يوزر: {old_un}\n"
                 updated_history = (history + new_entry)
                 
-                msg = f"🚨 **| رادار كـشـف الـهـويـة**\n━━━━━━━━━━━━━━\n👤 **المستخدم:** [{current_name}](tg://user?id={user_id})\n🆔 **الآيدي:** `{user_id}`\n\n"
+                # الجزء المعدل داخل check_user_radar
+                msg = (f"🚨 **| رادار كـشـف الـهـويـة**\n"
+                       f"━━━━━━━━━━━━━━\n"
+                       f"👤 **المستخدم:** [{current_name}](tg://user?id={user_id})\n"
+                       f"🆔 **الآيدي:** `{user_id}`\n"
+                       f"🔗 **اليوزر الحالي:** {current_username}\n\n") # جعلنا اليوزر يظهر هنا دائماً
+                
                 if str(current_name) != str(old_name):
                     msg += f"📜 **تغيير اسم:**\n← من: {old_name}\n→ إلى: {current_name}\n\n"
+                
                 if str(current_username) != str(old_un):
                     msg += f"🔗 **تغيير يوزر:**\n← من: {old_un}\n→ إلى: {current_username}\n"
+                
                 msg += "━━━━━━━━━━━━━━"
                 
                 db.sync_user_to_radar(uid_str, current_name, current_username, updated_history)
                 for gid in ALLOWED_GROUPS:
                     try: await client.send_message(gid, msg)
                     except: continue
+                
         else:
             db.sync_user_to_radar(uid_str, current_name, current_username)
 
@@ -154,26 +163,48 @@ async def main_handler(event):
         rank = await get_user_rank(event.chat_id, event.sender_id)
         if "عضو" in rank: return
 
+        # الجزء المعدل داخل main_handler لتعامل صحيح مع الآيدي
         if event.raw_text.startswith("كشف"):
             target_id = None
-            if event.is_reply: target_id = (await event.get_reply_message()).sender_id
-            elif len(event.raw_text.split()) > 1:
-                try: target_id = (await client.get_entity(event.raw_text.split()[1])).id
-                except: pass
+            parts = event.raw_text.split()
+
+            if event.is_reply:
+                target_id = (await event.get_reply_message()).sender_id
+            elif len(parts) > 1:
+                input_data = parts[1]
+                if input_data.isdigit(): # إذا كان المدخل رقماً (آيدي)
+                    target_id = int(input_data)
+                else: # إذا كان المدخل يوزرنيم
+                    try:
+                        u_entity = await client.get_entity(input_data)
+                        target_id = u_entity.id
+                    except: pass
 
             if target_id:
                 try:
-                    u = await client.get_entity(target_id)
+                    # محاولة جلب البيانات من تليجرام أو الداتابيز
+                    try:
+                        u = await client.get_entity(target_id)
+                        curr_name = f"{u.first_name} {u.last_name or ''}".strip()
+                        curr_un = f"@{u.username}" if u.username else "لا يوجد"
+                    except:
+                        # إذا لم يجد تليجرام العضو (غادر تماماً)، نجلب آخر اسم من الداتابيز
+                        db_data = db.get_user_from_radar(str(target_id))
+                        curr_name = db_data[0] if db_data else "غير معروف"
+                        curr_un = db_data[1] if db_data else "غير معروف"
+
                     data = db.get_user_from_radar(str(target_id))
                     history = data[2] if data and data[2] else "لا يوجد سجل سابق"
+                    
                     res = (f"📋 **| كـشـف الـهـويـة الإمـبـراطـوري**\n━━━━━━━━━━━━━━\n"
-                           f"👤 **الاسم:** {u.first_name} {u.last_name or ''}\n🆔 **الآيدي:** `{target_id}`\n"
-                           f"🔗 **اليوزر:** @{u.username if u.username else 'لا يوجد'}\n"
+                           f"👤 **الاسم:** {curr_name}\n🆔 **الآيدي:** `{target_id}`\n"
+                           f"🔗 **اليوزر:** {curr_un}\n"
                            f"🎖️ **الرتبة:** {await get_user_rank(event.chat_id, target_id)}\n\n"
                            f"📜 **السجل:**\n{history}\n━━━━━━━━━━━━━━")
                     await event.reply(res)
-                except: await event.reply("❌ فشل العثور على البيانات.")
-
+                except Exception as e:
+                    await event.reply(f"❌ فشل العثور على بيانات للآيدي: `{target_id}`")
+                
         elif event.raw_text == "المغادرين":
             exits = db.get_recent_exits(limit=10)
             if not exits: return await event.reply("📭 الأرشيف الأسود فارغ.")
