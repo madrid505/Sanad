@@ -31,7 +31,7 @@ async def check_user_radar(user_id, current_name, current_username):
     uid_str = str(user_id)
     
     # 1. كشف انتحال شخصية أنس السلايطة
-    owner_keywords = ["انس", "أنس", "السلايطة", "Alsalayta", "༺۝༒♛ 🅰🅽🅰🆂 ♛༒۝༻"]
+    owner_keywords = ["السلايطة "Alsalayta", "༺۝༒♛ 🅰🅽🅰🆂 ♛༒۝༻"]
     if any(key in current_name for key in owner_keywords) and user_id != OWNER_ID:
         alert = f"🚨 **| تـنـبـيـه انـتـحـال خـطـيـر**\n━━━━━━━━━━━━━━\n⚠️ **المستخدم:** [{current_name}](tg://user?id={user_id})\n🆔 **الآيدي:** `{user_id}`\n\n📢 **يحاول استخدام اسم المطور أنس!**\n━━━━━━━━━━━━━━"
         for gid in ALLOWED_GROUPS:
