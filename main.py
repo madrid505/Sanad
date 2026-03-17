@@ -13,7 +13,7 @@ ALLOWED_GROUPS = [-1003791330278, -1003721123319, -1002052564369]
 
 client = TelegramClient('Monopoly_Radar_V1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
-# --- دالة التحقق من الرتبة ---
+# --- دالة التحقق من الرتبة (تلقائياً من تليجرام) ---
 async def get_user_rank(chat_id, user_id):
     if user_id == OWNER_ID:
         return "المالك الأساسي 👑"
@@ -43,13 +43,11 @@ async def check_user_radar(user_id, current_name, current_username):
     old_data = db.get_user_from_radar(uid_str)
     if old_data:
         old_name, old_un, history = old_data
-        # التحقق إذا حدث تغيير في الاسم أو في اليوزر
         if str(current_name) != str(old_name) or str(current_username) != str(old_un):
             date_now = datetime.now().strftime("%Y-%m-%d %H:%M")
             new_entry = f"• [{date_now}] اسم: {old_name} | يوزر: {old_un}\n"
             updated_history = (history + new_entry)
             
-            # بناء رسالة التنبيه (تظهر الاسم القديم أو اليوزر القديم حسب ما تغير)
             msg = f"🚨 **| رادار كـشـف الـهـويـة**\n━━━━━━━━━━━━━━\n👤 **المستخدم:** [{current_name}](tg://user?id={user_id})\n🆔 **الآيدي:** `{user_id}`\n\n"
             
             if str(current_name) != str(old_name):
@@ -67,10 +65,13 @@ async def check_user_radar(user_id, current_name, current_username):
     else:
         db.sync_user_to_radar(uid_str, current_name, current_username)
 
-# --- الدورية التفتيشية (كل 15 دقيقة) ---
+# --- الدورية التفتيشية (تقرير خاص للمالك) ---
 async def patrol_system():
     while True:
-        print(f"[{datetime.now().strftime('%H:%M')}] بدأت الدورية التفتيشية (10 آلاف عضو)...", flush=True)
+        start_time = datetime.now()
+        total_checked = 0
+        print(f"[{start_time.strftime('%H:%M')}] بدأت الدورية التفتيشية (فحص صامت)...", flush=True)
+        
         for gid in ALLOWED_GROUPS:
             try:
                 async for user in client.iter_participants(gid):
@@ -78,8 +79,29 @@ async def patrol_system():
                     fn = f"{user.first_name} {user.last_name or ''}".strip()
                     un = f"@{user.username}" if user.username else "لا يوجد"
                     await check_user_radar(user.id, fn, un)
+                    total_checked += 1
             except Exception as e:
                 print(f"خطأ في الدورية للمجموعة {gid}: {e}", flush=True)
+
+        end_time = datetime.now()
+        duration = (end_time - start_time).seconds
+        
+        # رسالة التقرير للمالك فقط (الخاص)
+        report_msg = (
+            f"👑 **| تـقـريـر الـدورِيـة الـمـلـكـيـة**\n"
+            f"━━━━━━━━━━━━━━\n"
+            f"✅ **تم فحص المجموعات بنجاح.**\n\n"
+            f"📊 **الإحصائيات:**\n"
+            f"• الأعضاء المفحوصين: `{total_checked}`\n"
+            f"• وقت التنفيذ: `{duration}` ثانية\n"
+            f"• التوقيت: `{end_time.strftime('%H:%M')}`\n"
+            f"━━━━━━━━━━━━━━"
+        )
+        try:
+            await client.send_message(OWNER_ID, report_msg)
+        except Exception as e:
+            print(f"فشل إرسال التقرير للمالك: {e}", flush=True)
+
         await asyncio.sleep(900)
 
 # --- معالج الرسائل وأمر كشف ---
@@ -88,7 +110,6 @@ async def main_handler(event):
     user = await event.get_sender()
     if not user or user.bot: return
     
-    # فحص الرادار اللحظي عند كل رسالة
     fn = f"{user.first_name} {user.last_name or ''}".strip()
     un = f"@{user.username}" if user.username else "لا يوجد"
     await check_user_radar(event.sender_id, fn, un)
@@ -116,7 +137,6 @@ async def main_handler(event):
                 
                 radar_data = db.get_user_from_radar(str(target_id))
                 history_text = radar_data[2] if radar_data and radar_data[2] else "لا يوجد سجل سابق"
-                
                 rank = await get_user_rank(event.chat_id, target_id)
                 
                 response = (
