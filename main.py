@@ -30,7 +30,7 @@ async def get_user_rank(chat_id, user_id):
 async def check_user_radar(user_id, current_name, current_username):
     uid_str = str(user_id)
     
-    # 1. كشف انتحال الشخصية (تم حذف اسم انس المنفرد)
+    # 1. كشف انتحال الشخصية
     owner_keywords = ["السلايطة", "Alsalayta", "༺۝༒♛ 🅰🅽🅰🆂 ♛༒۝༻", "المالك الاساسي", "المطور الأساسي"]
 
     if any(key in current_name for key in owner_keywords) and user_id != OWNER_ID:
@@ -65,12 +65,12 @@ async def check_user_radar(user_id, current_name, current_username):
     else:
         db.sync_user_to_radar(uid_str, current_name, current_username)
 
-# --- الدورية التفتيشية (تقرير خاص للمالك) ---
+# --- الدورية التفتيشية (كل 5 دقائق) ---
 async def patrol_system():
     while True:
         start_time = datetime.now()
         total_checked = 0
-        print(f"[{start_time.strftime('%H:%M')}] بدأت الدورية التفتيشية (فحص صامت)...", flush=True)
+        print(f"[{start_time.strftime('%H:%M')}] بدأت الدورية التفتيشية السريعة (5 دقائق)...", flush=True)
         
         for gid in ALLOWED_GROUPS:
             try:
@@ -86,14 +86,14 @@ async def patrol_system():
         end_time = datetime.now()
         duration = (end_time - start_time).seconds
         
-        # رسالة التقرير للمالك فقط (الخاص)
         report_msg = (
             f"👑 **| تـقـريـر الـدورِيـة الـمـلـكـيـة**\n"
             f"━━━━━━━━━━━━━━\n"
-            f"✅ **تم فحص المجموعات بنجاح.**\n\n"
+            f"✅ **تم جرد المجموعات بنجاح.**\n\n"
             f"📊 **الإحصائيات:**\n"
             f"• الأعضاء المفحوصين: `{total_checked}`\n"
             f"• وقت التنفيذ: `{duration}` ثانية\n"
+            f"• الدورة القادمة بعد: `5 دقائق`\n"
             f"• التوقيت: `{end_time.strftime('%H:%M')}`\n"
             f"━━━━━━━━━━━━━━"
         )
@@ -102,7 +102,8 @@ async def patrol_system():
         except Exception as e:
             print(f"فشل إرسال التقرير للمالك: {e}", flush=True)
 
-        await asyncio.sleep(900)
+        # تم التعديل إلى 300 ثانية (5 دقائق)
+        await asyncio.sleep(300)
 
 # --- معالج الرسائل وأمر كشف ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
