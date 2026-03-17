@@ -13,7 +13,7 @@ ALLOWED_GROUPS = [-1003791330278, -1003721123319, -1002052564369]
 
 client = TelegramClient('Monopoly_Radar_V1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
-# --- دالة التحقق من الرتبة (تلقائياً من تليجرام) ---
+# --- دالة التحقق من الرتبة ---
 async def get_user_rank(chat_id, user_id):
     if user_id == OWNER_ID:
         return "المالك الأساسي 👑"
@@ -30,29 +30,34 @@ async def get_user_rank(chat_id, user_id):
 async def check_user_radar(user_id, current_name, current_username):
     uid_str = str(user_id)
     
-    # 1. كشف انتحال شخصية أنس السلايطة
-    owner_keywords = ["السلايطة "Alsalayta", "༺۝༒♛ 🅰🅽🅰🆂 ♛༒۝༻"]
+    # 1. كشف انتحال الشخصية (تم حذف اسم انس المنفرد)
+    owner_keywords = ["السلايطة", "Alsalayta", "༺۝༒♛ 🅰🅽🅰🆂 ♛༒۝༻", "المالك الاساسي", "المطور الأساسي"]
+
     if any(key in current_name for key in owner_keywords) and user_id != OWNER_ID:
-        alert = f"🚨 **| تـنـبـيـه انـتـحـال خـطـيـر**\n━━━━━━━━━━━━━━\n⚠️ **المستخدم:** [{current_name}](tg://user?id={user_id})\n🆔 **الآيدي:** `{user_id}`\n\n📢 **يحاول استخدام اسم المطور أنس!**\n━━━━━━━━━━━━━━"
+        alert = f"🚨 **| تـنـبـيـه انـتـحـال خـطـيـر**\n━━━━━━━━━━━━━━\n⚠️ **المستخدم:** [{current_name}](tg://user?id={user_id})\n🆔 **الآيدي:** `{user_id}`\n\n📢 **يحاول استخدام اسم أو لقب المطور!**\n━━━━━━━━━━━━━━"
         for gid in ALLOWED_GROUPS:
             try: await client.send_message(gid, alert)
             except: continue
 
-    # 2. المقارنة مع الأرشيف
+    # 2. المقارنة مع الأرشيف (كشف تغيير الاسم والمعرف)
     old_data = db.get_user_from_radar(uid_str)
     if old_data:
         old_name, old_un, history = old_data
+        # التحقق إذا حدث تغيير في الاسم أو في اليوزر
         if str(current_name) != str(old_name) or str(current_username) != str(old_un):
             date_now = datetime.now().strftime("%Y-%m-%d %H:%M")
             new_entry = f"• [{date_now}] اسم: {old_name} | يوزر: {old_un}\n"
             updated_history = (history + new_entry)
             
-            # إرسال تنبيه التغيير
+            # بناء رسالة التنبيه (تظهر الاسم القديم أو اليوزر القديم حسب ما تغير)
             msg = f"🚨 **| رادار كـشـف الـهـويـة**\n━━━━━━━━━━━━━━\n👤 **المستخدم:** [{current_name}](tg://user?id={user_id})\n🆔 **الآيدي:** `{user_id}`\n\n"
+            
             if str(current_name) != str(old_name):
-                msg += f"📜 **تغيير اسم:**\n← من: {old_name}\n→ إلى: {current_name}\n"
+                msg += f"📜 **تغيير اسم:**\n← من: {old_name}\n→ إلى: {current_name}\n\n"
+            
             if str(current_username) != str(old_un):
                 msg += f"🔗 **تغيير يوزر:**\n← من: {old_un}\n→ إلى: {current_username}\n"
+            
             msg += "━━━━━━━━━━━━━━"
             
             db.sync_user_to_radar(uid_str, current_name, current_username, updated_history)
@@ -65,7 +70,7 @@ async def check_user_radar(user_id, current_name, current_username):
 # --- الدورية التفتيشية (كل 15 دقيقة) ---
 async def patrol_system():
     while True:
-        print(f"[{datetime.now().strftime('%H:%M')}] بدأت الدورية التفتيشية...")
+        print(f"[{datetime.now().strftime('%H:%M')}] بدأت الدورية التفتيشية (10 آلاف عضو)...", flush=True)
         for gid in ALLOWED_GROUPS:
             try:
                 async for user in client.iter_participants(gid):
@@ -74,21 +79,20 @@ async def patrol_system():
                     un = f"@{user.username}" if user.username else "لا يوجد"
                     await check_user_radar(user.id, fn, un)
             except Exception as e:
-                print(f"خطأ في الدورية للمجموعة {gid}: {e}")
-        await asyncio.sleep(900) # 15 دقيقة بالضبط
+                print(f"خطأ في الدورية للمجموعة {gid}: {e}", flush=True)
+        await asyncio.sleep(900)
 
-# --- معالج الرسائل وأمر كشف (المغادرين والنشطين) ---
+# --- معالج الرسائل وأمر كشف ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
     user = await event.get_sender()
     if not user or user.bot: return
     
-    # فحص الرادار اللحظي مع كل رسالة
+    # فحص الرادار اللحظي عند كل رسالة
     fn = f"{user.first_name} {user.last_name or ''}".strip()
     un = f"@{user.username}" if user.username else "لا يوجد"
     await check_user_radar(event.sender_id, fn, un)
 
-    # أمر كشف الإمبراطوري
     if event.raw_text.startswith("كشف"):
         target_id = None
         target_user = None
@@ -106,12 +110,10 @@ async def main_handler(event):
 
         if target_id:
             try:
-                # جلب البيانات الحية من سيرفرات تليجرام (حتى لو غادر)
                 if not target_user: target_user = await client.get_entity(target_id)
                 curr_name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
                 curr_un = f"@{target_user.username}" if target_user.username else "لا يوجد"
                 
-                # جلب الأرشيف المتراكم من قاعدة البيانات
                 radar_data = db.get_user_from_radar(str(target_id))
                 history_text = radar_data[2] if radar_data and radar_data[2] else "لا يوجد سجل سابق"
                 
@@ -128,9 +130,9 @@ async def main_handler(event):
                 )
                 await event.reply(response)
             except:
-                await event.reply("❌ لم أتمكن من العثور على بيانات هذا المستخدم في تليجرام.")
+                await event.reply("❌ لم أتمكن من العثور على بيانات هذا المستخدم.")
 
 # --- بدء التشغيل ---
-print("--- [Monopoly Royal Radar System Online] ---")
+print("--- [Monopoly Royal Radar System Online] ---", flush=True)
 client.loop.create_task(patrol_system())
 client.run_until_disconnected()
