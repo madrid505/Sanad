@@ -28,6 +28,13 @@ class RadarDB:
             username TEXT,
             exit_date TEXT
         )''')
+        # 3. جدول الرتب الملكية (الإضافة الجديدة لضمان عمل أوامر الرفع والتنزيل)
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS user_ranks (
+            chat_id TEXT,
+            user_id TEXT,
+            rank TEXT,
+            PRIMARY KEY (chat_id, user_id)
+        )''')
         self.conn.commit()
 
     # --- دوال الرادار ---
@@ -43,6 +50,17 @@ class RadarDB:
             self.cursor.execute("INSERT OR IGNORE INTO users_radar (uid, full_name, username, history) VALUES (?, ?, ?, '')", (str(uid), str(full_name), str(username)))
             self.cursor.execute("UPDATE users_radar SET full_name=?, username=? WHERE uid=?", (str(full_name), str(username), str(uid)))
         self.conn.commit()
+
+    # --- دوال الرتب الملكية (جديدة) ---
+    def set_rank(self, chat_id, user_id, rank_name):
+        self.cursor.execute("INSERT OR REPLACE INTO user_ranks (chat_id, user_id, rank) VALUES (?, ?, ?)",
+                            (str(chat_id), str(user_id), str(rank_name)))
+        self.conn.commit()
+
+    def get_rank(self, chat_id, user_id):
+        self.cursor.execute("SELECT rank FROM user_ranks WHERE chat_id = ? AND user_id = ?", (str(chat_id), str(user_id)))
+        result = self.cursor.fetchone()
+        return result[0] if result else "عضو 👤"
 
     # --- دوال سجل المغادرين ---
     def add_to_exit_logs(self, uid, full_name, username, exit_date):
