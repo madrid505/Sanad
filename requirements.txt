@@ -1,1 +1,4 @@
 telethon
+asyncio
+datetime
+sqlite3
