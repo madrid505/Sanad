@@ -1,6 +1,6 @@
 import asyncio
 import os
-from datetime import datetime
+from datetime import datetime, timedelta  # أضفنا timedelta هنا
 from telethon import TelegramClient, events, types, functions, errors
 from database import db
 
@@ -23,12 +23,19 @@ radar_lock = asyncio.Lock()
 # --- [1] دالة جلب الرتبة الملكية ---
 async def get_user_rank(chat_id, user_id):
     if user_id == OWNER_ID: return "المالك الأساسي 👑"
+    # أولاً: جلب الرتبة من قاعدة البيانات (الرتب التي رفعتها أنت يدوياً)
+    saved_rank = db.get_rank(str(chat_id), user_id)
+    if saved_rank and saved_rank != "عضو 👤":
+        return saved_rank
+    
+    # ثانياً: إذا لم يوجد في القاعدة، نتحقق من تليجرام
     try:
         permissions = await client(functions.channels.GetParticipantRequest(channel=chat_id, participant=user_id))
         if isinstance(permissions.participant, types.ChannelParticipantCreator): return "منشئ المجموعة 🎖️"
         if isinstance(permissions.participant, types.ChannelParticipantAdmin): return "مشرف الإدارة 🛡️"
     except: pass
     return "عضو 👤"
+
 
 # --- [2] محرك الرادار وكاشف الانتحال الصارم ---
 async def check_user_radar(user_id, current_name, current_username):
@@ -132,62 +139,106 @@ async def monitor_admin_log():
                     last_log_id[gid] = log.id
             except: pass
         await asyncio.sleep(30)
+async def apply_penalty(event, target_id, action, target_name, duration_mins=None):
+    if target_id == OWNER_ID: return "❌ لا يمكن تنفيذ عقوبات على المالك الأساسي."
+    try:
+        rights = None
+        act_text = ""
+        if action == "ban":
+            rights = types.ChatBannedRights(until_date=None, view_messages=True)
+            act_text = "الطرد النهائي 🚷"
+        elif action == "mute":
+            until = datetime.now() + timedelta(minutes=duration_mins) if duration_mins else None
+            rights = types.ChatBannedRights(until_date=until, send_messages=True)
+            act_text = f"الكتم {'لمدة ' + str(duration_mins) + ' دقيقة' if duration_mins else 'للأبد'} 🤐"
+        elif action == "unblock":
+            rights = types.ChatBannedRights(until_date=None, view_messages=False, send_messages=False)
+            act_text = "العفو الملكي وفك القيود ✅"
+
+        await client(functions.channels.EditBannedRequest(event.chat_id, target_id, rights))
+        return f"⚖️ **| مـحـكـمـة مـونـوبـولي**\n━━━━━━━━━━━━━━\n👤 **المستهدف:** {target_name}\n🆔 `{target_id}`\n✅ **الإجراء:** {act_text}\n━━━━━━━━━━━━━━"
+    except Exception as e: return f"❌ فشل: {str(e)}"
+        
 
 # --- [6] معالج الأوامر ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
     if not event.sender_id or event.sender.bot: return
-    
-    # تحديث لحظي
+    text = event.raw_text
+    parts = text.split()
+    if not parts: return
+    cmd = parts[0]
+
+    # [1] تحديث الرادار اللحظي للمرسل
     fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
     un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
     await check_user_radar(event.sender_id, fn, un)
 
-    if event.raw_text.startswith("كشف"):
-        rank = await get_user_rank(event.chat_id, event.sender_id)
-        if "عضو" in rank: return
-        
-        target_id = None
-        parts = event.raw_text.split()
-        if event.is_reply:
-            target_id = (await event.get_reply_message()).sender_id
-        elif len(parts) > 1:
-            if parts[1].isdigit(): target_id = int(parts[1])
-            else:
-                try:
-                    u_ent = await client.get_entity(parts[1])
-                    target_id = u_ent.id
-                except: pass
+    # [2] التحقق من رتبة الإدارة
+    rank_text = await get_user_rank(event.chat_id, event.sender_id)
+    is_admin = any(r in rank_text for r in ["المالك", "منشئ", "مشرف", "مدير"])
+    if not is_admin: return
 
-        if target_id:
+    # [3] استخراج الهدف (رد، آيدي، أو يوزر) - (هنا دمجنا ذكاء كودك القديم)
+    target_id = None
+    if event.is_reply:
+        target_id = (await event.get_reply_message()).sender_id
+    elif len(parts) > 1:
+        if parts[1].isdigit(): 
+            target_id = int(parts[1])
+        else:
             try:
-                try:
-                    u = await client.get_entity(target_id)
-                    curr_name = f"{u.first_name} {u.last_name or ''}".strip()
-                    curr_un = f"@{u.username}" if u.username else "لا يوجد"
-                except:
-                    db_data = db.get_user_from_radar(str(target_id))
-                    curr_name = db_data[0] if db_data else "غير معروف"
-                    curr_un = db_data[1] if db_data else "غير معروف"
-
-                data = db.get_user_from_radar(str(target_id))
-                history = data[2] if data and data[2] else "لا يوجد سجل سابق"
-                
-                res = (f"📋 **| كـشـف الـهـويـة الإمـبـراطـوري**\n━━━━━━━━━━━━━━\n"
-                       f"👤 **الاسم:** {curr_name}\n🆔 **الآيدي:** `{target_id}`\n"
-                       f"🔗 **اليوزر:** {curr_un}\n🎖️ **الرتبة:** {await get_user_rank(event.chat_id, target_id)}\n\n"
-                       f"📜 **السجل التاريخي:**\n{history}\n━━━━━━━━━━━━━━")
-                await event.reply(res)
+                u_ent = await client.get_entity(parts[1]) # جلب الآيدي من اليوزر @
+                target_id = u_ent.id
             except: pass
 
-    elif event.raw_text == "المغادرين":
-        rank = await get_user_rank(event.chat_id, event.sender_id)
-        if "عضو" in rank: return
-        exits = db.get_recent_exits(limit=10)
-        if not exits: return await event.reply("📭 الأرشيف الأسود فارغ.")
-        msg = "📂 **| أرشـيـف الـمـغـادرين الـمـلـكـي**\n━━━━━━━━━━━━━━\n"
-        for e in exits: msg += f"👤 {e['name']}\n🆔 `{e['id']}`\n🗓️ {e['date']}\n\n"
-        await event.reply(msg + "━━━━━━━━━━━━━━")
+    if not target_id:
+        if text == "المغادرين": # أمر المغادرين لا يحتاج هدف
+            exits = db.get_recent_exits(limit=10)
+            if not exits: return await event.reply("📭 الأرشيف الأسود فارغ.")
+            msg = "📂 **| أرشـيـف الـمـغـادرين الـمـلـكـي**\n━━━━━━━━━━━━━━\n"
+            for e in exits: msg += f"👤 {e['name']}\n🆔 `{e['id']}`\n🗓️ {e['date']}\n\n"
+            await event.reply(msg + "━━━━━━━━━━━━━━")
+        return
+
+    # [4] جلب بيانات الهدف (تليجرام أولاً ثم الرادار) - (دقة كودك القديم)
+    target_name = "غير معروف"
+    target_un = "لا يوجد"
+    try:
+        u = await client.get_entity(target_id)
+        target_name = f"{u.first_name} {u.last_name or ''}".strip()
+        target_un = f"@{u.username}" if u.username else "لا يوجد"
+    except:
+        db_data = db.get_user_from_radar(str(target_id))
+        if db_data:
+            target_name, target_un = db_data[0], db_data[1]
+
+    # [5] تنفيذ الأوامر (كشف + عقوبات)
+    if cmd == "كشف":
+        data = db.get_user_from_radar(str(target_id))
+        history = data[2] if data and data[2] else "لا يوجد سجل سابق"
+        res = (f"📋 **| كـشـف الـهـويـة الإمـبـراطـوري**\n━━━━━━━━━━━━━━\n"
+               f"👤 **الاسم:** {target_name}\n🆔 **الآيدي:** `{target_id}`\n"
+               f"🔗 **اليوزر:** {target_un}\n🎖️ **الرتبة:** {await get_user_rank(event.chat_id, target_id)}\n\n"
+               f"📜 **السجل التاريخي:**\n{history}\n━━━━━━━━━━━━━━")
+        await event.reply(res)
+
+    elif cmd == "حظر":
+        await event.reply(await apply_penalty(event, target_id, "ban", target_name))
+
+    elif cmd == "كتم":
+        await event.reply(await apply_penalty(event, target_id, "mute", target_name, 60))
+
+    elif cmd in ["فك_الحظر", "الغاء_الحظر", "الغاء_الكتم", "فك"]:
+        await event.reply(await apply_penalty(event, target_id, "unblock", target_name))
+
+    elif cmd == "رفع_مشرف":
+        db.set_rank(str(event.chat_id), target_id, "مشرف الإدارة 🛡️")
+        await event.reply(f"✅ تم رفع {target_name} إلى رتبة مشرف.")
+
+    elif cmd == "تنزيل_مشرف":
+        db.set_rank(str(event.chat_id), target_id, "عضو 👤")
+        await event.reply(f"📉 تم تنزيل {target_name} إلى رتبة عضو.")
 
 # --- بدء التشغيل النهائي ---
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
