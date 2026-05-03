@@ -296,4 +296,6 @@ print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
 client.loop.create_task(names_patrol_task()) 
 client.loop.create_task(exits_scheduler_task()) 
 client.loop.create_task(monitor_admin_log()) 
+client.loop.create_task(daily_reset_task()) 
+
 client.run_until_disconnected()
