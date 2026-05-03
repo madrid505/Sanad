@@ -14,32 +14,36 @@ class RadarDB:
         self.create_tables()
 
     def create_tables(self):
-        # 1. جدول الرادار الأساسي
+        # 1. إنشاء الجداول الأساسية
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS users_radar (
-            uid TEXT PRIMARY KEY, 
-            full_name TEXT, 
-            username TEXT,
-            history TEXT DEFAULT ''
+            uid TEXT PRIMARY KEY, full_name TEXT, username TEXT, history TEXT DEFAULT ''
         )''')
-        # 2. جدول أرشيف المغادرين (الأرشيف الأسود)
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS exit_logs (
-            uid TEXT PRIMARY KEY,
-            full_name TEXT,
-            username TEXT,
-            exit_date TEXT
+            uid TEXT PRIMARY KEY, full_name TEXT, username TEXT, exit_date TEXT
         )''')
-        # 3. جدول الرتب الملكية (الإضافة الجديدة لضمان عمل أوامر الرفع والتنزيل)
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS user_ranks (
-            chat_id TEXT,
-            user_id TEXT,
-            rank TEXT,
-            PRIMARY KEY (chat_id, user_id)
+            chat_id TEXT, user_id TEXT, rank TEXT, PRIMARY KEY (chat_id, user_id)
         )''')
+        
+        # 2. إضافة أعمدة المراقبة للجدول القديم (تتم مرة واحدة فقط بصمت)
+        columns = [
+            ("admin_msgs", "INTEGER DEFAULT 0"),
+            ("admin_actions", "INTEGER DEFAULT 0"),
+            ("total_seconds", "INTEGER DEFAULT 0"),
+            ("last_activity", "INTEGER DEFAULT 0")
+        ]
+        for col_name, col_type in columns:
+            try:
+                self.cursor.execute(f"ALTER TABLE users_radar ADD COLUMN {col_name} {col_type}")
+            except:
+                pass # إذا كان العمود موجوداً مسبقاً سيتجاهل الأمر
+
         self.conn.commit()
 
     # --- دوال الرادار ---
     def get_user_from_radar(self, uid):
-        self.cursor.execute("SELECT full_name, username, history FROM users_radar WHERE uid=?", (str(uid),))
+        # تحديث الاستعلام ليشمل كل الأعمدة (7 أعمدة بالترتيب)
+        self.cursor.execute("SELECT full_name, username, history, admin_msgs, admin_actions, total_seconds, last_activity FROM users_radar WHERE uid=?", (str(uid),))
         return self.cursor.fetchone()
 
     def sync_user_to_radar(self, uid, full_name, username, updated_history=None):
@@ -51,7 +55,7 @@ class RadarDB:
             self.cursor.execute("UPDATE users_radar SET full_name=?, username=? WHERE uid=?", (str(full_name), str(username), str(uid)))
         self.conn.commit()
 
-    # --- دوال الرتب الملكية (جديدة) ---
+    # --- دوال الرتب الملكية ---
     def set_rank(self, chat_id, user_id, rank_name):
         self.cursor.execute("INSERT OR REPLACE INTO user_ranks (chat_id, user_id, rank) VALUES (?, ?, ?)",
                             (str(chat_id), str(user_id), str(rank_name)))
@@ -68,6 +72,7 @@ class RadarDB:
                             (str(uid), str(full_name), str(username), str(exit_date)))
         self.conn.commit()
 
+    # (بقية الدوال كما هي...)
     def get_recent_exits(self, limit=10):
         self.cursor.execute("SELECT uid, full_name, username, exit_date FROM exit_logs ORDER BY exit_date DESC LIMIT ?", (limit,))
         rows = self.cursor.fetchall()
