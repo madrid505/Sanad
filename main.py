@@ -53,7 +53,8 @@ async def check_user_radar(user_id, current_name, current_username):
 
         old_data = db.get_user_from_radar(uid_str)
         if old_data:
-            old_name, old_un, history = old_data
+            old_name, old_un, history = old_data[0], old_data[1], old_data[2]
+
             if str(current_name) != str(old_name) or str(current_username) != str(old_un):
                 date_now = datetime.now().strftime("%Y-%m-%d %H:%M")
                 updated_history = (history + f"• [{date_now}] اسم: {old_name} | يوزر: {old_un}\n")
@@ -85,7 +86,7 @@ async def names_patrol_task():
         
         try: await client.send_message(OWNER_ID, f"🔄 **دورية الرادار:** تم فحص `{total_checked}` عضو بنجاح.")
         except: pass
-        await asyncio.sleep(300) # 5 دقائق
+        await asyncio.sleep(900) # 5 دقائق
 
 # --- [4] جرد المغادرين (فوري عند التشغيل + كل 24 ساعة) ---
 async def exits_scheduler_task():
