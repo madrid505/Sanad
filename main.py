@@ -161,7 +161,7 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
     except Exception as e: return f"❌ فشل: {str(e)}"
         
 
-# --- [6] معالج الأوامر ---
+# --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
     if not event.sender_id or event.sender.bot: return
@@ -170,17 +170,23 @@ async def main_handler(event):
     if not parts: return
     cmd = parts[0]
 
-    # [1] تحديث الرادار اللحظي للمرسل
+    # [1] تحديث الرادار اللحظي للمرسل (كاشف الأسماء)
     fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
     un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
     await check_user_radar(event.sender_id, fn, un)
 
-    # [2] التحقق من رتبة الإدارة
+    # [2] نظام تتبع نشاط المشرفين (الرادار الجديد)
     rank_text = await get_user_rank(event.chat_id, event.sender_id)
     is_admin = any(r in rank_text for r in ["المالك", "منشئ", "مشرف", "مدير"])
+    
+    if is_admin:
+        # تسجيل النشاط بصمت في قاعدة البيانات
+        track_admin_activity(event.sender_id)
+
+    # إذا لم يكن مشرفاً، لا يكمل معالجة الأوامر الإدارية
     if not is_admin: return
 
-    # [3] استخراج الهدف (رد، آيدي، أو يوزر) - (هنا دمجنا ذكاء كودك القديم)
+    # [3] استخراج الهدف (رد، آيدي، أو يوزر)
     target_id = None
     if event.is_reply:
         target_id = (await event.get_reply_message()).sender_id
@@ -189,20 +195,26 @@ async def main_handler(event):
             target_id = int(parts[1])
         else:
             try:
-                u_ent = await client.get_entity(parts[1]) # جلب الآيدي من اليوزر @
+                u_ent = await client.get_entity(parts[1])
                 target_id = u_ent.id
             except: pass
 
+    # [4] أوامر عامة لا تحتاج لهدف (مثل عرض التقارير)
     if not target_id:
-        if text == "المغادرين": # أمر المغادرين لا يحتاج هدف
+        if cmd == "المغادرين":
             exits = db.get_recent_exits(limit=10)
             if not exits: return await event.reply("📭 الأرشيف الأسود فارغ.")
             msg = "📂 **| أرشـيـف الـمـغـادرين الـمـلـكـي**\n━━━━━━━━━━━━━━\n"
             for e in exits: msg += f"👤 {e['name']}\n🆔 `{e['id']}`\n🗓️ {e['date']}\n\n"
             await event.reply(msg + "━━━━━━━━━━━━━━")
+        
+        elif cmd == "الرادار" and event.sender_id == OWNER_ID:
+            # عرض تقرير نشاط المشرفين للمالك فقط
+            report = get_admin_report()
+            await event.reply(report)
         return
 
-    # [4] جلب بيانات الهدف (تليجرام أولاً ثم الرادار) - (دقة كودك القديم)
+    # [5] جلب بيانات الهدف (تليجرام أو الرادار)
     target_name = "غير معروف"
     target_un = "لا يوجد"
     try:
@@ -214,10 +226,10 @@ async def main_handler(event):
         if db_data:
             target_name, target_un = db_data[0], db_data[1]
 
-    # [5] تنفيذ الأوامر (كشف + عقوبات)
+    # [6] تنفيذ الأوامر الإدارية
     if cmd == "كشف":
         data = db.get_user_from_radar(str(target_id))
-        history = data[2] if data and data[2] else "لا يوجد سجل سابق"
+        history = data[2] if data and len(data) > 2 else "لا يوجد سجل سابق"
         res = (f"📋 **| كـشـف الـهـويـة الإمـبـراطـوري**\n━━━━━━━━━━━━━━\n"
                f"👤 **الاسم:** {target_name}\n🆔 **الآيدي:** `{target_id}`\n"
                f"🔗 **اليوزر:** {target_un}\n🎖️ **الرتبة:** {await get_user_rank(event.chat_id, target_id)}\n\n"
