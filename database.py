@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import time
 
 class RadarDB:
     def __init__(self):
@@ -14,7 +15,7 @@ class RadarDB:
         self.create_tables()
 
     def create_tables(self):
-        # 1. إنشاء الجداول الأساسية
+        # 1. إنشاء الجداول الأساسية بنظامك الخاص
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS users_radar (
             uid TEXT PRIMARY KEY, 
             full_name TEXT, 
@@ -32,7 +33,7 @@ class RadarDB:
             chat_id TEXT, user_id TEXT, rank TEXT, PRIMARY KEY (chat_id, user_id)
         )''')
         
-        # 2. التأكد من وجود أعمدة المراقبة (للترقية من نسخ قديمة)
+        # 2. التأكد من وجود أعمدة المراقبة (للترقية)
         columns = [
             ("admin_msgs", "INTEGER DEFAULT 0"),
             ("admin_actions", "INTEGER DEFAULT 0"),
@@ -47,18 +48,38 @@ class RadarDB:
 
         self.conn.commit()
 
-    # --- دوال الرادار المطورة ---
+    # --- [جديد] دالة التصفير اليومي لنشاط المشرفين ---
+    def reset_admin_activity(self):
+        self.cursor.execute("UPDATE users_radar SET admin_msgs = 0, admin_actions = 0, total_seconds = 0")
+        self.conn.commit()
+
+    # --- [جديد] دالة تحديث الإحصائيات اللحظية ---
+    def update_admin_stats(self, uid, seconds=0, add_msg=False):
+        uid_str = str(uid)
+        current_ts = int(time.time())
+        if add_msg:
+            self.cursor.execute("UPDATE users_radar SET admin_msgs = admin_msgs + 1, total_seconds = total_seconds + ?, last_activity = ? WHERE uid = ?", 
+                              (seconds, current_ts, uid_str))
+        else:
+            self.cursor.execute("UPDATE users_radar SET total_seconds = total_seconds + ?, last_activity = ? WHERE uid = ?", 
+                              (seconds, current_ts, uid_str))
+        self.conn.commit()
+
+    # --- [جديد] جلب كافة إحصائيات المشرفين للتقرير ---
+    def get_all_admins_stats(self):
+        self.cursor.execute("SELECT uid, full_name, admin_msgs, total_seconds, last_activity FROM users_radar WHERE admin_msgs > 0 OR total_seconds > 0 ORDER BY admin_msgs DESC")
+        return self.cursor.fetchall()
+
+    # --- دوال الرادار الأساسية ---
     def get_user_from_radar(self, uid):
         self.cursor.execute("SELECT full_name, username, history, admin_msgs, admin_actions, total_seconds, last_activity FROM users_radar WHERE uid=?", (str(uid),))
         return self.cursor.fetchone()
 
     def sync_user_to_radar(self, uid, full_name, username, updated_history=None):
         uid_str = str(uid)
-        # نستخدم INSERT OR IGNORE لضمان وجود المستخدم أولاً
         self.cursor.execute("INSERT OR IGNORE INTO users_radar (uid, full_name, username, history) VALUES (?, ?, ?, '')", 
                             (uid_str, str(full_name), str(username)))
         
-        # التحديث الذكي: نحدث الاسم واليوزر والسجل فقط، دون لمس العدادات
         if updated_history is not None:
             self.cursor.execute("UPDATE users_radar SET full_name=?, username=?, history=? WHERE uid=?", 
                                 (str(full_name), str(username), str(updated_history), uid_str))
@@ -67,7 +88,7 @@ class RadarDB:
                                 (str(full_name), str(username), uid_str))
         self.conn.commit()
 
-    # --- دوال الرتب الملكية ---
+    # --- دوال الرتب وسجل المغادرين (كما هي) ---
     def set_rank(self, chat_id, user_id, rank_name):
         self.cursor.execute("INSERT OR REPLACE INTO user_ranks (chat_id, user_id, rank) VALUES (?, ?, ?)",
                             (str(chat_id), str(user_id), str(rank_name)))
@@ -78,7 +99,6 @@ class RadarDB:
         result = self.cursor.fetchone()
         return result[0] if result else "عضو 👤"
 
-    # --- دوال سجل المغادرين ---
     def add_to_exit_logs(self, uid, full_name, username, exit_date):
         self.cursor.execute("INSERT OR REPLACE INTO exit_logs (uid, full_name, username, exit_date) VALUES (?, ?, ?, ?)",
                             (str(uid), str(full_name), str(username), str(exit_date)))
