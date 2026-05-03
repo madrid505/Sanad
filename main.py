@@ -141,6 +141,33 @@ async def monitor_admin_log():
                     last_log_id[gid] = log.id
             except: pass
         await asyncio.sleep(30)
+        
+# --- [5.5] مهمة التصفير الملكي (كل 24 ساعة عند منتصف الليل) ---
+async def daily_reset_task():
+    while True:
+        try:
+            now = datetime.now()
+            # حساب الوقت المتبقي لمنتصف الليل بدقة
+            tomorrow = now + timedelta(days=1)
+            reset_time = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+            wait_seconds = (reset_time - now).total_seconds()
+            
+            await asyncio.sleep(wait_seconds)
+            
+            # تنفيذ التصفير في قاعدة البيانات
+            db.reset_admin_activity()
+            
+            # إرسال إشعار للمالك بنجاح التصفير
+            reset_msg = (f"♻️ **| إشـعـار الإدارة الـمـلـكـي**\n"
+                        f"━━━━━━━━━━━━━━\n"
+                        f"✅ تم تصفير عدادات نشاط المشرفين بنجاح.\n"
+                        f"📅 يبدأ الآن سجل يوم جديد: `{datetime.now().strftime('%Y-%m-%d')}`\n"
+                        f"━━━━━━━━━━━━━━")
+            await client.send_message(OWNER_ID, reset_msg)
+        except Exception as e:
+            print(f"Error in reset task: {e}")
+            await asyncio.sleep(60)
+            
 async def apply_penalty(event, target_id, action, target_name, duration_mins=None):
     if target_id == OWNER_ID: return "❌ لا يمكن تنفيذ عقوبات على المالك الأساسي."
     try:
