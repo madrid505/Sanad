@@ -160,8 +160,7 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
         return f"⚖️ **| مـحـكـمـة مـونـوبـولي**\n━━━━━━━━━━━━━━\n👤 **المستهدف:** {target_name}\n🆔 `{target_id}`\n✅ **الإجراء:** {act_text}\n━━━━━━━━━━━━━━"
     except Exception as e: return f"❌ فشل: {str(e)}"
         
-
-# --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار) ---
+# --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار المخصص) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
     if not event.sender_id or event.sender.bot: return
@@ -170,7 +169,7 @@ async def main_handler(event):
     if not parts: return
     cmd = parts[0]
 
-    # [1] تحديث الرادار اللحظي للمرسل (كاشف الأسماء)
+    # [1] تحديث الرادار اللحظي للمرسل (كاشف الأسماء) - يعمل في كل المجموعات
     fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
     un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
     await check_user_radar(event.sender_id, fn, un)
@@ -179,27 +178,33 @@ async def main_handler(event):
     rank_text = await get_user_rank(event.chat_id, event.sender_id)
     is_admin = any(r in rank_text for r in ["المالك", "منشئ", "مشرف", "مدير"])
     
-    if is_admin:
-        # تسجيل النشاط بصمت في قاعدة البيانات
+    # 🎯 تخصيص الجرد: يتم احتساب المشاركات فقط في هذه المجموعة
+    MONITOR_GROUP = -1002052564369
+    
+    if is_admin and event.chat_id == MONITOR_GROUP:
+        # تسجيل النشاط بصمت في قاعدة البيانات لهذه المجموعة حصراً
+        # ملاحظة: تأكد أن الدالة track_admin_activity في ملفك الأساسي تدعم الأداء اللحظي
         track_admin_activity(event.sender_id)
 
     # إذا لم يكن مشرفاً، لا يكمل معالجة الأوامر الإدارية
     if not is_admin: return
 
-    # [3] استخراج الهدف (رد، آيدي، أو يوزر)
+    # [3] استخراج الهدف (رد، آيدي، أو يوزر) - شامل لجميع الأنماط مع await
     target_id = None
     if event.is_reply:
-        target_id = (await event.get_reply_message()).sender_id
+        reply_msg = await event.get_reply_message()
+        if reply_msg:
+            target_id = reply_msg.sender_id
     elif len(parts) > 1:
         if parts[1].isdigit(): 
             target_id = int(parts[1])
         else:
             try:
-                u_ent = await client.get_entity(parts[1])
+                u_ent = await client.get_entity(parts[1]) # جلب الآيدي من اليوزر @ مع await
                 target_id = u_ent.id
             except: pass
 
-    # [4] أوامر عامة لا تحتاج لهدف (مثل عرض التقارير)
+    # [4] أوامر عامة لا تحتاج لهدف (عرض التقارير)
     if not target_id:
         if cmd == "المغادرين":
             exits = db.get_recent_exits(limit=10)
@@ -209,12 +214,12 @@ async def main_handler(event):
             await event.reply(msg + "━━━━━━━━━━━━━━")
         
         elif cmd == "الرادار" and event.sender_id == OWNER_ID:
-            # عرض تقرير نشاط المشرفين للمالك فقط
+            # عرض تقرير نشاط المشرفين للمالك فقط مع await
             report = get_admin_report()
             await event.reply(report)
         return
 
-    # [5] جلب بيانات الهدف (تليجرام أو الرادار)
+    # [5] جلب بيانات الهدف (تليجرام أولاً ثم الرادار) لضمان الدقة مع await
     target_name = "غير معروف"
     target_un = "لا يوجد"
     try:
@@ -226,7 +231,7 @@ async def main_handler(event):
         if db_data:
             target_name, target_un = db_data[0], db_data[1]
 
-    # [6] تنفيذ الأوامر الإدارية
+    # [6] تنفيذ الأوامر الإدارية (تعمل في كافة المجموعات ALLOWED_GROUPS)
     if cmd == "كشف":
         data = db.get_user_from_radar(str(target_id))
         history = data[2] if data and len(data) > 2 else "لا يوجد سجل سابق"
@@ -237,13 +242,17 @@ async def main_handler(event):
         await event.reply(res)
 
     elif cmd == "حظر":
-        await event.reply(await apply_penalty(event, target_id, "ban", target_name))
+        # تطبيق العقوبة مع await كامل
+        response = await apply_penalty(event, target_id, "ban", target_name)
+        await event.reply(response)
 
     elif cmd == "كتم":
-        await event.reply(await apply_penalty(event, target_id, "mute", target_name, 60))
+        response = await apply_penalty(event, target_id, "mute", target_name, 60)
+        await event.reply(response)
 
     elif cmd in ["فك_الحظر", "الغاء_الحظر", "الغاء_الكتم", "فك"]:
-        await event.reply(await apply_penalty(event, target_id, "unblock", target_name))
+        response = await apply_penalty(event, target_id, "unblock", target_name)
+        await event.reply(response)
 
     elif cmd == "رفع_مشرف":
         db.set_rank(str(event.chat_id), target_id, "مشرف الإدارة 🛡️")
@@ -252,6 +261,7 @@ async def main_handler(event):
     elif cmd == "تنزيل_مشرف":
         db.set_rank(str(event.chat_id), target_id, "عضو 👤")
         await event.reply(f"📉 تم تنزيل {target_name} إلى رتبة عضو.")
+            
 
 # --- بدء التشغيل النهائي ---
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
