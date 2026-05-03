@@ -1,76 +1,76 @@
 import time
+from datetime import datetime
 from database import db
 
-def track_admin_activity(u_id):
-    """تحديث أرقام نشاط المشرف بصمت بطريقة ملكية آمنة"""
-    now = int(time.time())
-    uid_str = str(u_id)
-    
-    # 1. جلب البيانات الحالية (نستخدم الدالة الموجودة في database.py)
-    row = db.get_user_from_radar(uid_str)
-    if not row:
-        return
+# قاموس لتخزين وقت دخول المشرفين (لحساب مدة التواجد لحظياً)
+active_admins = {}
 
-    # ترتيب القيم: 0:name, 1:un, 2:history, 3:msgs, 4:actions, 5:total_sec, 6:last_act
-    last_act = row[6] if len(row) > 6 and row[6] else 0
+def track_admin_activity(user_id):
+    """تسجيل نشاط المشرف وحفظ وقت تواجده"""
+    current_time = int(time.time())
+    uid = str(user_id)
     
-    # 2. تحديث عداد الرسائل ووقت النشاط
-    # نستخدم execute مباشرة من db لضمان الـ Thread-Safety إذا كان ملفك يدعم ذلك
-    try:
-        # زيادة الرسائل وتحديث الوقت الأخير
-        db.cursor.execute(
-            "UPDATE users_radar SET admin_msgs = admin_msgs + 1, last_activity = ? WHERE uid = ?", 
-            (now, uid_str)
-        )
+    if uid not in active_admins:
+        active_admins[uid] = current_time
+        duration = 0
+    else:
+        duration = current_time - active_admins[uid]
+        active_admins[uid] = current_time
 
-        # 3. حساب مدة التواجد الذكي (إذا كان النشاط خلال آخر 15 دقيقة)
-        if last_act > 0 and (now - last_act) < 900:
-            added_time = now - last_act
-            db.cursor.execute(
-                "UPDATE users_radar SET total_seconds = total_seconds + ? WHERE uid = ?", 
-                (added_time, uid_str)
-            )
-        
-        db.conn.commit()
-    except Exception as e:
-        print(f"⚠️ خطأ في تحديث نشاط الرادار: {e}")
+    # تحديث قاعدة البيانات (إضافة رسالة + ثواني التواجد + وقت النشاط)
+    db.update_admin_stats(uid, seconds=duration, add_msg=True)
 
 def get_admin_report():
-    """توليد التقرير الرقمي الإمبراطوري للمالك"""
-    try:
-        # نجلب المشرفين النشطين (الذين لديهم رسائل أو تواجد زمن)
-        db.cursor.execute(
-            "SELECT full_name, admin_msgs, total_seconds FROM users_radar WHERE admin_msgs > 0 ORDER BY admin_msgs DESC"
-        )
-        rows = db.cursor.fetchall()
-        
-        if not rows:
-            return "📊 **رادار المشرفين:** لا يوجد نشاط مسجل للمشرفين في مجموعة التبادل حالياً."
+    """توليد التقرير المرعب بنظام النسب المئوية وآخر ظهور"""
+    stats = db.get_all_admins_stats()
+    if not stats:
+        return "📭 **| السجل الإمبراطوري فارغ.. لا نشاط للمشرفين اليوم.**"
 
-        report = "👑 **تـقـريـر الـرادار الإداري** 👑\n"
+    # حساب إجمالي الرسائل للمجموعة لحساب النسب المئوية
+    total_all_msgs = sum(s[2] for s in stats)
+    current_ts = int(time.time())
+    
+    report = "⚔️ **| رادار الإدارة  (24س)**\n"
+    report += "━━━━━━━━━━━━━━\n"
+
+    for uid, name, msgs, seconds, last_act in stats:
+        # 1. حساب مدة التواجد
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        
+        # 2. حساب وقت آخر ظهور بدقة
+        diff = current_ts - last_act
+        if diff < 60:
+            last_seen = "الآن 🟢"
+        elif diff < 3600:
+            last_seen = f"منذ {diff // 60} د"
+        else:
+            last_seen = f"منذ {diff // 3600} س"
+
+        # 3. حساب نسبة الاستحواذ (التنافس)
+        percentage = (msgs / total_all_msgs * 100) if total_all_msgs > 0 else 0
+        
+        # 4. تحديد الحالة والتقييم (الضرب بيد من حديد)
+        if msgs < 5:
+            status = "خامل جداً 😴 (تحت المراجعة)"
+            rank_icon = "⚠️"
+        elif msgs < 20:
+            status = "مجتهد 👍"
+            rank_icon = "✅"
+        else:
+            status = "شعلة نشاط 🔥 (ملكي)"
+            rank_icon = "🏆"
+
+        # إضافة بيانات المشرف للتقرير
+        report += f"👤 **المشرف:** {name}\n"
+        report += f"💬 **الرسائل:** {msgs} ({percentage:.1f}%)\n"
+        report += f"⏳ **التواجد:** {hours}س و {minutes}د\n"
+        report += f"🕒 **آخر ظهور:** {last_seen}\n"
+        report += f"{rank_icon} **الحالة:** {status}\n"
         report += "━━━━━━━━━━━━━━\n"
-        
-        for r in rows:
-            name = r[0]
-            msgs = r[1]
-            seconds = r[2] if r[2] else 0
-            
-            # تحويل الثواني لساعات ودقائق بشكل أنيق
-            h = seconds // 3600
-            m = (seconds % 3600) // 60
-            
-            # تقييم الأداء (لمسة ملكية)
-            status = "🔥 نشط جداً" if msgs > 50 else "✅ متفاعل"
-            
-            report += (
-                f"👤 **المشرف:** {name}\n"
-                f"💬 الرسائل: `{msgs}`\n"
-                f"⏳ التواجد: `{h}س و {m}د`\n"
-                f"📊 الحالة: {status}\n"
-                f"━━━━━━━━━━━━━━\n"
-            )
-        
-        report += f"⏰ تم التحديث: `{time.strftime('%H:%M')}`"
-        return report
-    except Exception as e:
-        return f"❌ خطأ في توليد التقرير: {str(e)}"
+
+    report += f"📢 **إجمالي رسائل الإدارة:** {total_all_msgs}\n"
+    report += f"⏰ **توقيت التحديث:** {datetime.now().strftime('%H:%M')}\n"
+    report += "⚖️ **ملاحظة:** يتم تصفير العدادات تلقائياً كل 24س."
+    
+    return report
