@@ -207,18 +207,22 @@ async def main_handler(event):
     is_admin = any(r in rank_text for r in ["المالك", "منشئ", "مشرف", "مدير"])
     
     # 🎯 تخصيص الجرد: يتم احتساب المشاركات فقط في هذه المجموعة
+        
     MONITOR_GROUP = -1002052564369
     
-        if is_admin and event.chat_id == MONITOR_GROUP:
+    if is_admin and event.chat_id == MONITOR_GROUP:
         # 1. جلب الرسالة التي يتم الرد عليها (للتأكد من أنها ليست رداً على بوت ألعاب)
         reply_msg = await event.get_reply_message()
         is_reply_to_bot = reply_msg and reply_msg.sender and reply_msg.sender.bot
         
-        # 2. قائمة كلمات الألعاب لتجاهلها
-        game_keywords = ["روليت", "تخمين" "رياضيات" "صور" "اسلاميات", "انا" "صيد", "حظ", "لعبة", "الصور", "توب", "نقاطي"]
+        # 2. قائمة كلمات الألعاب لتجاهلها (تم إضافة الفواصل المفقودة)
+        game_keywords = [
+            "روليت", "تخمين", "رياضيات", "صور", "اسلاميات", 
+            "انا", "صيد", "حظ", "لعبة", "الصور", "توب", "نقاطي"
+        ]
         is_game_cmd = any(word in text for word in game_keywords) 
 
-        # تسجيل النشاط فقط إذا كانت رسالة حقيقية (ليست رداً على بوت وليست أمر لعبة)
+        # تسجيل النشاط فقط إذا كانت رسالة حقيقية
         if not is_reply_to_bot and not is_game_cmd:
             track_admin_activity(event.sender_id)
 
