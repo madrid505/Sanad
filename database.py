@@ -16,7 +16,14 @@ class RadarDB:
     def create_tables(self):
         # 1. إنشاء الجداول الأساسية
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS users_radar (
-            uid TEXT PRIMARY KEY, full_name TEXT, username TEXT, history TEXT DEFAULT ''
+            uid TEXT PRIMARY KEY, 
+            full_name TEXT, 
+            username TEXT, 
+            history TEXT DEFAULT '',
+            admin_msgs INTEGER DEFAULT 0,
+            admin_actions INTEGER DEFAULT 0,
+            total_seconds INTEGER DEFAULT 0,
+            last_activity INTEGER DEFAULT 0
         )''')
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS exit_logs (
             uid TEXT PRIMARY KEY, full_name TEXT, username TEXT, exit_date TEXT
@@ -25,7 +32,7 @@ class RadarDB:
             chat_id TEXT, user_id TEXT, rank TEXT, PRIMARY KEY (chat_id, user_id)
         )''')
         
-        # 2. إضافة أعمدة المراقبة للجدول القديم (تتم مرة واحدة فقط بصمت)
+        # 2. التأكد من وجود أعمدة المراقبة (للترقية من نسخ قديمة)
         columns = [
             ("admin_msgs", "INTEGER DEFAULT 0"),
             ("admin_actions", "INTEGER DEFAULT 0"),
@@ -36,23 +43,28 @@ class RadarDB:
             try:
                 self.cursor.execute(f"ALTER TABLE users_radar ADD COLUMN {col_name} {col_type}")
             except:
-                pass # إذا كان العمود موجوداً مسبقاً سيتجاهل الأمر
+                pass 
 
         self.conn.commit()
 
-    # --- دوال الرادار ---
+    # --- دوال الرادار المطورة ---
     def get_user_from_radar(self, uid):
-        # تحديث الاستعلام ليشمل كل الأعمدة (7 أعمدة بالترتيب)
         self.cursor.execute("SELECT full_name, username, history, admin_msgs, admin_actions, total_seconds, last_activity FROM users_radar WHERE uid=?", (str(uid),))
         return self.cursor.fetchone()
 
     def sync_user_to_radar(self, uid, full_name, username, updated_history=None):
+        uid_str = str(uid)
+        # نستخدم INSERT OR IGNORE لضمان وجود المستخدم أولاً
+        self.cursor.execute("INSERT OR IGNORE INTO users_radar (uid, full_name, username, history) VALUES (?, ?, ?, '')", 
+                            (uid_str, str(full_name), str(username)))
+        
+        # التحديث الذكي: نحدث الاسم واليوزر والسجل فقط، دون لمس العدادات
         if updated_history is not None:
-            self.cursor.execute("INSERT OR REPLACE INTO users_radar (uid, full_name, username, history) VALUES (?, ?, ?, ?)", 
-                                (str(uid), str(full_name), str(username), str(updated_history)))
+            self.cursor.execute("UPDATE users_radar SET full_name=?, username=?, history=? WHERE uid=?", 
+                                (str(full_name), str(username), str(updated_history), uid_str))
         else:
-            self.cursor.execute("INSERT OR IGNORE INTO users_radar (uid, full_name, username, history) VALUES (?, ?, ?, '')", (str(uid), str(full_name), str(username)))
-            self.cursor.execute("UPDATE users_radar SET full_name=?, username=? WHERE uid=?", (str(full_name), str(username), str(uid)))
+            self.cursor.execute("UPDATE users_radar SET full_name=?, username=? WHERE uid=?", 
+                                (str(full_name), str(username), uid_str))
         self.conn.commit()
 
     # --- دوال الرتب الملكية ---
@@ -72,7 +84,6 @@ class RadarDB:
                             (str(uid), str(full_name), str(username), str(exit_date)))
         self.conn.commit()
 
-    # (بقية الدوال كما هي...)
     def get_recent_exits(self, limit=10):
         self.cursor.execute("SELECT uid, full_name, username, exit_date FROM exit_logs ORDER BY exit_date DESC LIMIT ?", (limit,))
         rows = self.cursor.fetchall()
