@@ -8,7 +8,7 @@ from admin_monitor import track_admin_activity, get_admin_report
 # --- إعدادات البوت الملكي ---
 API_ID = 33183154
 API_HASH = 'ccb195afa05973cf544600ad3c313b84'
-BOT_TOKEN = '8393076766:AAG8TZ-dQ7-7ucc_AcSuNUX-QOuLuKFxFC0'
+BOT_TOKEN = '8393076766:AAGkIii33sKnlQjbZi2HVuyGu4C6ueQGlcE'
 OWNER_ID = 5010882230
 # --- تحديث قائمة المجموعات المسموحة ---
 ALLOWED_GROUPS = [
