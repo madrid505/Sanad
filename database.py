@@ -53,17 +53,30 @@ class RadarDB:
         self.cursor.execute("UPDATE users_radar SET admin_msgs = 0, admin_actions = 0, total_seconds = 0")
         self.conn.commit()
 
-    # --- [جديد] دالة تحديث الإحصائيات اللحظية ---
+        # --- [تحديث ملكي] دالة تحديث الإحصائيات اللحظية بنظام التجميع ---
     def update_admin_stats(self, uid, seconds=0, add_msg=False):
         uid_str = str(uid)
         current_ts = int(time.time())
+        
+        # نستخدم الاستعلام المباشر للجمع (+1 للرسائل و +seconds للوقت)
+        # هذا يضمن أن البيانات تتراكم فوق بعضها بدقة
         if add_msg:
-            self.cursor.execute("UPDATE users_radar SET admin_msgs = admin_msgs + 1, total_seconds = total_seconds + ?, last_activity = ? WHERE uid = ?", 
-                              (seconds, current_ts, uid_str))
+            self.cursor.execute("""
+                UPDATE users_radar 
+                SET admin_msgs = admin_msgs + 1, 
+                    total_seconds = total_seconds + ?, 
+                    last_activity = ? 
+                WHERE uid = ?
+            """, (seconds, current_ts, uid_str))
         else:
-            self.cursor.execute("UPDATE users_radar SET total_seconds = total_seconds + ?, last_activity = ? WHERE uid = ?", 
-                              (seconds, current_ts, uid_str))
+            self.cursor.execute("""
+                UPDATE users_radar 
+                SET total_seconds = total_seconds + ?, 
+                    last_activity = ? 
+                WHERE uid = ?
+            """, (seconds, current_ts, uid_str))
         self.conn.commit()
+
 
     # --- [جديد] جلب كافة إحصائيات المشرفين للتقرير ---
     def get_all_admins_stats(self):
