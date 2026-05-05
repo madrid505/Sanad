@@ -1,6 +1,6 @@
 import asyncio
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from telethon import TelegramClient, events, types, functions, errors
 from database import db
