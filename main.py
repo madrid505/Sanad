@@ -225,7 +225,8 @@ async def main_handler(event):
 
         # تسجيل النشاط فقط إذا كانت رسالة حقيقية
         if not is_reply_to_bot and not is_game_cmd:
-            track_admin_activity(event.sender_id)
+            track_admin_activity(event.sender_id, fn)
+
 
 
     # إذا لم يكن مشرفاً، لا يكمل معالجة الأوامر الإدارية
@@ -259,7 +260,14 @@ async def main_handler(event):
             # عرض تقرير نشاط المشرفين للمالك فقط مع await
             report = get_admin_report()
             await event.reply(report)
+            
+        elif cmd == "تقرير" and event.sender_id == OWNER_ID:
+            # استدعاء دالة الجلسات التفصيلية من admin_monitor
+            from admin_monitor import get_detailed_session_report
+            detailed_report = get_detailed_session_report()
+            await event.reply(detailed_report)
         return
+
 
     # [5] جلب بيانات الهدف (تليجرام أولاً ثم الرادار) لضمان الدقة مع await
     target_name = "غير معروف"
