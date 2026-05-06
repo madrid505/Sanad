@@ -246,27 +246,43 @@ async def main_handler(event):
                 u_ent = await client.get_entity(parts[1]) # جلب الآيدي من اليوزر @ مع await
                 target_id = u_ent.id
             except: pass
-
-    # [4] أوامر عامة لا تحتاج لهدف (عرض التقارير)
-    if not target_id:
-        if cmd == "المغادرين":
-            exits = db.get_recent_exits(limit=10)
-            if not exits: return await event.reply("📭 الأرشيف الأسود فارغ.")
-            msg = "📂 **| أرشـيـف الـمـغـادرين الـمـلـكـي**\n━━━━━━━━━━━━━━\n"
-            for e in exits: msg += f"👤 {e['name']}\n🆔 `{e['id']}`\n🗓️ {e['date']}\n\n"
-            await event.reply(msg + "━━━━━━━━━━━━━━")
-        
-        elif cmd == "الرادار" and event.sender_id == OWNER_ID:
-            # عرض تقرير نشاط المشرفين للمالك فقط مع await
-            report = get_admin_report()
-            await event.reply(report)
-            
-        elif cmd == "تقرير" and event.sender_id == OWNER_ID:
-            # استدعاء دالة الجلسات التفصيلية من admin_monitor
-            from admin_monitor import get_detailed_session_report
-            detailed_report = get_detailed_session_report()
-            await event.reply(detailed_report)
+    # [4] أوامر عامة (التقارير، التصفير، والمغادرين)
+    if cmd == "المغادرين":
+        exits = db.get_recent_exits(limit=10)
+        if not exits: return await event.reply("📭 الأرشيف الأسود فارغ.")
+        msg = "📂 **| أرشـيـف الـمـغـادرين الـمـلـكـي**\n━━━━━━━━━━━━━━\n"
+        for e in exits: msg += f"👤 {e['name']}\n🆔 `{e['id']}`\n🗓️ {e['date']}\n\n"
+        await event.reply(msg + "━━━━━━━━━━━━━━")
         return
+
+    elif cmd == "الرادار" and event.sender_id == OWNER_ID:
+        report = get_admin_report()
+        await event.reply(report)
+        return
+
+    elif cmd == "تقرير" and event.sender_id == OWNER_ID:
+        from admin_monitor import get_detailed_session_report, get_specific_admin_report
+        # إذا كتب "تقرير" فقط بدون إضافات
+        if len(parts) == 1:
+            detailed_report = get_detailed_session_report()
+            # نظام الصفحات البسيط: إذا كان التقرير طويلاً جداً، يتم تقسيمه
+            if len(detailed_report) > 4000:
+                for i in range(0, len(detailed_report), 4000):
+                    await event.reply(detailed_report[i:i+4000])
+            else:
+                await event.reply(detailed_report)
+        # إذا كتب "تقرير + اسم/يوزر/آيدي"
+        else:
+            query = " ".join(parts[1:])
+            spec_report = get_specific_admin_report(query)
+            await event.reply(spec_report)
+        return
+
+    elif cmd == "تصفير" and event.sender_id == OWNER_ID:
+        db.reset_admin_activity()
+        await event.reply("♻️ **| تـم تـصـفـير جـمـيع عـدادات الإدارة نـجـاح.**\nسيبدأ الرادار باحتساب الجلسات من الصفر الآن.")
+        return
+
 
 
     # [5] جلب بيانات الهدف (تليجرام أولاً ثم الرادار) لضمان الدقة مع await
