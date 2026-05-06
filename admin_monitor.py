@@ -9,7 +9,7 @@ def track_admin_activity(user_id, user_name):
     """تسجيل نشاط المشرف بنظام الجلسات الصافية وتخزين الجلسات التفصيلية"""
     current_time = int(time.time())
     uid = str(user_id)
-    ACTIVITY_WINDOW = 600 # 10 دقائق (إذا انقطع أكثر من 10 دقائق تعتبر جلسة جديدة)
+    ACTIVITY_WINDOW = 600 # 10 دقائق
     
     if uid not in active_admins:
         active_admins[uid] = {
@@ -25,9 +25,7 @@ def track_admin_activity(user_id, user_name):
             duration = time_diff
             active_admins[uid]['last_act'] = current_time
         else:
-            # إغلاق الجلسة السابقة وحفظها لأن الانقطاع زاد عن 10 دقائق
             save_finished_session(uid)
-            # بدء جلسة جديدة فوراً من هذه اللحظة
             active_admins[uid] = {
                 'last_act': current_time,
                 'session_start': current_time,
@@ -38,14 +36,13 @@ def track_admin_activity(user_id, user_name):
     db.update_admin_stats(uid, seconds=duration, add_msg=True)
 
 def save_finished_session(uid):
-    """حفظ الجلسة المنتهية في قاعدة البيانات (توثيق كامل)"""
+    """حفظ الجلسة المنتهية في قاعدة البيانات"""
     if uid in active_admins:
         data = active_admins[uid]
         start_ts = data['session_start']
         end_ts = data['last_act']
         duration_mins = round((end_ts - start_ts) / 60)
         
-        # نسجل الجلسة حتى لو كانت دقيقة واحدة لضمان الرصد الكامل
         if duration_mins >= 1:
             start_dt = datetime.fromtimestamp(start_ts)
             end_dt = datetime.fromtimestamp(end_ts)
@@ -60,7 +57,7 @@ def save_finished_session(uid):
             )
 
 def get_admin_report():
-    """تقرير الرادار العام (إحصائيات مجمعة للكل)"""
+    """تقرير الرادار العام للكل"""
     stats = db.get_all_admins_stats()
     if not stats:
         return "📭 **| السجل الإمبراطوري فارغ.. لا نشاط للمشرفين اليوم.**"
@@ -87,7 +84,7 @@ def get_admin_report():
     return report + f"📢 **إجمالي الرسائل:** {total_all_msgs}\n⚖️ يتم التصفير تلقائياً كل 24س."
 
 def get_detailed_session_report():
-    """تقرير الجلسات العام لجميع المشرفين (الجرد التاريخي الكامل لليوم)"""
+    """تقرير الجلسات العام لجميع المشرفين"""
     today = datetime.now().strftime("%Y-%m-%d")
     sessions = db.get_daily_sessions(today)
     
@@ -101,13 +98,12 @@ def get_detailed_session_report():
         organized[name].append(f"⏰ `{start} ← {end}` ({dur} دقيقة)")
     
     for admin_name, logs in organized.items():
-        # عرض كل الجلسات بلا استثناء
         report += f"👤 **{admin_name}:**\n" + "\n".join(f"   • {l}" for l in logs) + "\n───\n"
         
     return report + "━━━━━━━━━━━━━━"
 
 def get_specific_admin_report(query):
-    """توليد تقرير شامل ومفصل (مجهر) لمشرف واحد - يعرض كافة الجلسات"""
+    """توليد تقرير شامل ومفصل (مجهر) لمشرف واحد - يعرض كافة الجلسات بما فيها النشطة الآن"""
     admin_data = db.find_admin(query)
     
     if not admin_data:
@@ -116,20 +112,18 @@ def get_specific_admin_report(query):
     uid, name, username, msgs, seconds, last_act = admin_data
     today = datetime.now().strftime("%Y-%m-%d")
     current_ts = int(time.time())
+    uid_str = str(uid)
     
-    # حساب وقت التواجد الإجمالي
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
     time_str = f"{hours}س و {minutes}د" if hours > 0 else f"{minutes}د"
     
-    # حساب آخر ظهور لحظياً
     diff = current_ts - last_act
     last_seen = "الآن 🟢" if diff < 60 else f"منذ {diff // 60} د" if diff < 3600 else f"منذ {diff // 3600} س"
     
-    # جلب جميع جلسات المشرف لليوم من قاعدة البيانات
+    # 1. جلب الجلسات المؤرشفة من الداتا بيز
     sessions = db.get_admin_sessions(uid, today)
     
-    # بناء التقرير الإمبراطوري الشامل
     res = f"📑 **| كـشـف الـنـشـاط الـتـفـصـيـلي الـكـامـل**\n"
     res += f"━━━━━━━━━━━━━━\n"
     res += f"👤 **الاسم:** {name}\n"
@@ -142,12 +136,25 @@ def get_specific_admin_report(query):
     res += f"━━━━━━━━━━━━━━\n"
     res += f"📜 **سجل الجلسات والحركات (اليوم):**\n"
     
-    if not sessions:
-        res += "• لا يوجد جلسات مغلقة مسجلة حتى الآن."
-    else:
-        # هنا التعديل: عرض (كل) الجلسات مهما كان عددها مع ترقيمها
-        for i, (start, end, dur) in enumerate(sessions, 1):
-            res += f"{i}- من `{start}` إلى `{end}` ({dur} دقيقة)\n"
+    found_any = False
+    counter = 1
+
+    # أولاً: عرض الجلسات المنتهية
+    if sessions:
+        found_any = True
+        for start, end, dur in sessions:
+            res += f"{counter}- من `{start}` إلى `{end}` ({dur} دقيقة)\n"
+            counter += 1
+    
+    # ثانياً: التحقق إذا كان المشرف لديه جلسة "مفتوحة" الآن في الذاكرة
+    if uid_str in active_admins:
+        found_any = True
+        start_ts = active_admins[uid_str]['session_start']
+        start_dt = datetime.fromtimestamp(start_ts).strftime("%H:%M")
+        res += f"{counter}- من `{start_dt}` ← إلى الآن (جلسة مستمرة 🟢)\n"
+
+    if not found_any:
+        res += "• لا يوجد جلسات مسجلة حتى الآن."
             
     res += f"\n━━━━━━━━━━━━━━"
     return res
