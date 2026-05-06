@@ -6,7 +6,7 @@ from database import db
 active_admins = {}
 
 def track_admin_activity(user_id, user_name):
-    """تسجيل نشاط المشرف بنظام الجلسات الصافية"""
+    """تسجيل نشاط المشرف بنظام الجلسات الصافية وتسجيل كافة الحركات"""
     current_time = int(time.time())
     uid = str(user_id)
     ACTIVITY_WINDOW = 600 # 10 دقائق كحد أقصى بين الرسائل
@@ -25,7 +25,7 @@ def track_admin_activity(user_id, user_name):
             duration = time_diff
             active_admins[uid]['last_act'] = current_time
         else:
-            # إذا انقطع النشاط لأكثر من 10 دقائق، نحفظ القديمة ونبدأ جديدة
+            # تم التعديل: حفظ الحركة السابقة فوراً عند انقطاع النشاط
             save_finished_session(uid)
             active_admins[uid] = {
                 'last_act': current_time,
@@ -34,33 +34,35 @@ def track_admin_activity(user_id, user_name):
             }
             duration = 0
 
+    # تحديث الإحصائيات العامة فوراً في قاعدة البيانات
     db.update_admin_stats(uid, seconds=duration, add_msg=True)
 
 def save_finished_session(uid):
-    """حفظ الجلسة المنتهية من الذاكرة إلى قاعدة البيانات"""
+    """حفظ الحركة أو الجلسة المنتهية من الذاكرة إلى سجلات قاعدة البيانات"""
     uid_str = str(uid)
     if uid_str in active_admins:
         data = active_admins[uid_str]
         start_ts = data['session_start']
         end_ts = data['last_act']
-        duration_mins = round((end_ts - start_ts) / 60)
         
-        # نحفظ فقط الجلسات التي استمرت دقيقة أو أكثر
-        if duration_mins >= 1:
-            start_dt = datetime.fromtimestamp(start_ts)
-            end_dt = datetime.fromtimestamp(end_ts)
-            
-            db.add_session_log(
-                uid_str, 
-                data['name'], 
-                start_dt.strftime("%H:%M"), 
-                end_dt.strftime("%H:%M"), 
-                duration_mins, 
-                start_dt.strftime("%Y-%m-%d")
-            )
+        # التعديل الجديد: حساب المدة بالدقائق مع اعتبار دقيقة واحدة كحد أدنى لأي حركة
+        duration_seconds = end_ts - start_ts
+        duration_mins = max(1, round(duration_seconds / 60))
+        
+        start_dt = datetime.fromtimestamp(start_ts)
+        end_dt = datetime.fromtimestamp(end_ts)
+        
+        db.add_session_log(
+            uid_str, 
+            data['name'], 
+            start_dt.strftime("%H:%M"), 
+            end_dt.strftime("%H:%M"), 
+            duration_mins, 
+            start_dt.strftime("%Y-%m-%d")
+        )
 
 def get_admin_report():
-    """تقرير الرادار العام لجميع المشرفين"""
+    """تقرير الرادار العام لجميع المشرفين مع الأرشفة الذكية"""
     stats = db.get_all_admins_stats()
     if not stats:
         return "📭 **| السجل الإمبراطوري فارغ.. لا نشاط للمشرفين اليوم.**"
@@ -72,7 +74,7 @@ def get_admin_report():
     for uid, name, msgs, seconds, last_act in stats:
         uid_str = str(uid)
         
-        # التعديل الذكي: إنهاء الجلسة إذا غاب المشرف أكثر من 10 دقائق عند طلب التقرير
+        # الأرشفة الفورية إذا غاب المشرف أكثر من 10 دقائق عند طلب التقرير
         if uid_str in active_admins:
             if (current_ts - active_admins[uid_str]['last_act']) > 600:
                 save_finished_session(uid_str)
@@ -116,7 +118,7 @@ def get_detailed_session_report():
     return report + "━━━━━━━━━━━━━━"
 
 def get_specific_admin_report(query):
-    """توليد تقرير المجهر لمشرف واحد مع الفحص اللحظي لنشاط الجلسة"""
+    """توليد تقرير المجهر لمشرف واحد مع الإغلاق الفوري للحركات المعلقة"""
     admin_data = db.find_admin(query)
     
     if not admin_data:
@@ -127,14 +129,13 @@ def get_specific_admin_report(query):
     current_ts = int(time.time())
     uid_str = str(uid)
 
-    # --- التعديل الجديد: التحقق من "صلاحية" الجلسة المستمرة الآن ---
+    # الأرشفة الفورية قبل عرض النتائج لضمان ظهور السجل التاريخي فوراً
     if uid_str in active_admins:
-        # إذا غاب أكثر من 10 دقائق، نغلق الجلسة فوراً قبل عرض التقرير
         if (current_ts - active_admins[uid_str]['last_act']) > 600:
             save_finished_session(uid_str)
             del active_admins[uid_str]
     
-    # حساب وقت التواجد
+    # حساب وقت التواجد الإجمالي
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
     time_str = f"{hours}س و {minutes}د" if hours > 0 else f"{minutes}د"
@@ -161,13 +162,14 @@ def get_specific_admin_report(query):
     found_any = False
     counter = 1
 
+    # 1. عرض الجلسات المؤرشفة (بما فيها الحركات المسجلة حديثاً)
     if sessions:
         found_any = True
         for start, end, dur in sessions:
             res += f"{counter}- من `{start}` إلى `{end}` ({dur} دقيقة)\n"
             counter += 1
     
-    # عرض الجلسة النشطة "فقط" إذا كانت فعلاً ضمن نافذة الـ 10 دقائق
+    # 2. عرض الجلسة النشطة حالياً
     if uid_str in active_admins:
         found_any = True
         start_ts = active_admins[uid_str]['session_start']
@@ -175,7 +177,7 @@ def get_specific_admin_report(query):
         res += f"{counter}- من `{start_dt}` ← إلى الآن (جلسة مستمرة 🟢)\n"
 
     if not found_any:
-        res += "• لا يوجد جلسات مسجلة حتى الآن."
+        res += "• لا يوجد حركات مسجلة حتى الآن."
             
     res += f"\n━━━━━━━━━━━━━━"
     return res
