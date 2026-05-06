@@ -298,15 +298,24 @@ async def main_handler(event):
         if db_data:
             target_name, target_un = db_data[0], db_data[1]
 
-    # [6] تنفيذ الأوامر الإدارية (تعمل في كافة المجموعات ALLOWED_GROUPS)
-    if cmd == "كشف":
-        data = db.get_user_from_radar(str(target_id))
-        history = data[2] if data and len(data) > 2 else "لا يوجد سجل سابق"
-        res = (f"📋 **| كـشـف الـهـويـة الإمـبـراطـوري**\n━━━━━━━━━━━━━━\n"
-               f"👤 **الاسم:** {target_name}\n🆔 **الآيدي:** `{target_id}`\n"
-               f"🔗 **اليوزر:** {target_un}\n🎖️ **الرتبة:** {await get_user_rank(event.chat_id, target_id)}\n\n"
-               f"📜 **السجل التاريخي:**\n{history}\n━━━━━━━━━━━━━━")
-        await event.reply(res)
+        # [6] تنفيذ الأوامر الإدارية (تعمل في كافة المجموعات ALLOWED_GROUPS)
+        if cmd == "كشف":
+        # إذا كان الهدف مشرفاً، نعطيه التقرير المجهري الشامل
+        rank = await get_user_rank(event.chat_id, target_id)
+        if any(r in rank for r in ["المالك", "منشئ", "مشرف", "مدير"]):
+            from admin_monitor import get_specific_admin_report
+            res = get_specific_admin_report(str(target_id))
+            await event.reply(res)
+        else:
+            # إذا كان عضواً عادياً، نعطيه كشف الرادار التقليدي
+            data = db.get_user_from_radar(str(target_id))
+            history = data[2] if data and len(data) > 2 else "لا يوجد سجل سابق"
+            res = (f"📋 **| كـشـف الـهـويـة الإمـبـراطـوري**\n━━━━━━━━━━━━━━\n"
+                   f"👤 **الاسم:** {target_name}\n🆔 **الآيدي:** `{target_id}`\n"
+                   f"🔗 **اليوزر:** {target_un}\n🎖️ **الرتبة:** {rank}\n\n"
+                   f"📜 **السجل التاريخي:**\n{history}\n━━━━━━━━━━━━━━")
+            await event.reply(res)
+
 
     elif cmd == "حظر":
         # تطبيق العقوبة مع await كامل
