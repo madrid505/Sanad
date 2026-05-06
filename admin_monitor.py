@@ -9,7 +9,7 @@ def track_admin_activity(user_id, user_name):
     """تسجيل نشاط المشرف بنظام الجلسات الصافية وتخزين الجلسات التفصيلية"""
     current_time = int(time.time())
     uid = str(user_id)
-    ACTIVITY_WINDOW = 600 # 10 دقائق
+    ACTIVITY_WINDOW = 600 # 10 دقائق (إذا انقطع أكثر من 10 دقائق تعتبر جلسة جديدة)
     
     if uid not in active_admins:
         active_admins[uid] = {
@@ -25,8 +25,9 @@ def track_admin_activity(user_id, user_name):
             duration = time_diff
             active_admins[uid]['last_act'] = current_time
         else:
-            # إغلاق الجلسة السابقة لأن الانقطاع زاد عن 10 دقائق
+            # إغلاق الجلسة السابقة وحفظها لأن الانقطاع زاد عن 10 دقائق
             save_finished_session(uid)
+            # بدء جلسة جديدة فوراً من هذه اللحظة
             active_admins[uid] = {
                 'last_act': current_time,
                 'session_start': current_time,
@@ -37,13 +38,14 @@ def track_admin_activity(user_id, user_name):
     db.update_admin_stats(uid, seconds=duration, add_msg=True)
 
 def save_finished_session(uid):
-    """حفظ الجلسة المنتهية في قاعدة البيانات"""
+    """حفظ الجلسة المنتهية في قاعدة البيانات (توثيق كامل)"""
     if uid in active_admins:
         data = active_admins[uid]
         start_ts = data['session_start']
         end_ts = data['last_act']
         duration_mins = round((end_ts - start_ts) / 60)
         
+        # نسجل الجلسة حتى لو كانت دقيقة واحدة لضمان الرصد الكامل
         if duration_mins >= 1:
             start_dt = datetime.fromtimestamp(start_ts)
             end_dt = datetime.fromtimestamp(end_ts)
@@ -85,7 +87,7 @@ def get_admin_report():
     return report + f"📢 **إجمالي الرسائل:** {total_all_msgs}\n⚖️ يتم التصفير تلقائياً كل 24س."
 
 def get_detailed_session_report():
-    """تقرير الجلسات العام لجميع المشرفين"""
+    """تقرير الجلسات العام لجميع المشرفين (الجرد التاريخي الكامل لليوم)"""
     today = datetime.now().strftime("%Y-%m-%d")
     sessions = db.get_daily_sessions(today)
     
@@ -99,14 +101,14 @@ def get_detailed_session_report():
         organized[name].append(f"⏰ `{start} ← {end}` ({dur} دقيقة)")
     
     for admin_name, logs in organized.items():
-        report += f"👤 **{admin_name}:**\n" + "\n".join(f"   {l}" for l in logs) + "\n───\n"
+        # عرض كل الجلسات بلا استثناء
+        report += f"👤 **{admin_name}:**\n" + "\n".join(f"   • {l}" for l in logs) + "\n───\n"
         
     return report + "━━━━━━━━━━━━━━"
 
-# --- [الجديد كلياً] دالة التقرير المخصص لمشرف واحد ---
 def get_specific_admin_report(query):
-    """توليد تقرير شامل ومفصل لمشرف واحد فقط بناءً على بحث"""
-    admin_data = db.find_admin(query) # البحث في قاعدة البيانات
+    """توليد تقرير شامل ومفصل (مجهر) لمشرف واحد - يعرض كافة الجلسات"""
+    admin_data = db.find_admin(query)
     
     if not admin_data:
         return f"❌ **| عذراً.. لا يوجد مشرف مسجل بهذا الاسم أو الآيدي: ({query})**"
@@ -115,36 +117,37 @@ def get_specific_admin_report(query):
     today = datetime.now().strftime("%Y-%m-%d")
     current_ts = int(time.time())
     
-    # حساب الوقت
+    # حساب وقت التواجد الإجمالي
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
     time_str = f"{hours}س و {minutes}د" if hours > 0 else f"{minutes}د"
     
-    # حساب آخر ظهور
+    # حساب آخر ظهور لحظياً
     diff = current_ts - last_act
     last_seen = "الآن 🟢" if diff < 60 else f"منذ {diff // 60} د" if diff < 3600 else f"منذ {diff // 3600} س"
     
-    # جلب جلسات المشرف اليوم
+    # جلب جميع جلسات المشرف لليوم من قاعدة البيانات
     sessions = db.get_admin_sessions(uid, today)
     
-    # بناء التقرير المفصل
-    res = f"👤 **| كـشـف نـشـاط الـمـشـرف الـمـلـكي**\n"
+    # بناء التقرير الإمبراطوري الشامل
+    res = f"📑 **| كـشـف الـنـشـاط الـتـفـصـيـلي الـكـامـل**\n"
     res += f"━━━━━━━━━━━━━━\n"
     res += f"👤 **الاسم:** {name}\n"
     res += f"🔗 **اليوزر:** {username}\n"
     res += f"🆔 **الآيدي:** `{uid}`\n"
     res += f"━━━━━━━━━━━━━━\n"
-    res += f"💬 **إجمالي الرسائل:** `{msgs}`\n"
+    res += f"💬 **الرسائل:** `{msgs}`\n"
     res += f"⏳ **إجمالي التواجد:** `{time_str}`\n"
     res += f"🕒 **آخر نشاط:** {last_seen}\n"
     res += f"━━━━━━━━━━━━━━\n"
-    res += f"📜 **سجل تحركات اليوم ({today}):**\n"
+    res += f"📜 **سجل الجلسات والحركات (اليوم):**\n"
     
     if not sessions:
-        res += "⚠️ لا يوجد جلسات مغلقة مسجلة لهذا اليوم."
+        res += "• لا يوجد جلسات مغلقة مسجلة حتى الآن."
     else:
-        for start, end, dur in sessions:
-            res += f"📍 `{start} ← {end}` ({dur} دقيقة)\n"
+        # هنا التعديل: عرض (كل) الجلسات مهما كان عددها مع ترقيمها
+        for i, (start, end, dur) in enumerate(sessions, 1):
+            res += f"{i}- من `{start}` إلى `{end}` ({dur} دقيقة)\n"
             
     res += f"\n━━━━━━━━━━━━━━"
     return res
