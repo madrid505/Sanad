@@ -300,13 +300,17 @@ async def main_handler(event):
 
     # [6] تنفيذ الأوامر الإدارية (تبدأ من بداية السطر برمجياً)
     if cmd == "كشف":
+        if not target_id:
+            return await event.reply("⚠️ **| يرجى الرد على رسالة أو وضع آيدي/يوزر للكشف.**")
+
         rank = await get_user_rank(event.chat_id, target_id)
-        if any(r in rank for r in ["المالك", "منشئ", "مشرف", "مدير"]):
-            # استدعاء تقرير المشرف المخصص (المجهر)
+        is_admin = any(r in rank for r in ["المالك", "منشئ", "مشرف", "مدير", "ادمن"])
+        
+        if is_admin:
             res = get_specific_admin_report(str(target_id))
+            res = res.replace("👤 **الاسم:**", f"🎖️ **الرتبة:** {rank}\n👤 **الاسم:**")
             await event.reply(res)
         else:
-            # كشف رادار الأعضاء العاديين
             data = db.get_user_from_radar(str(target_id))
             history = data[2] if data and len(data) > 2 else "لا يوجد سجل سابق"
             res = (f"📋 **| كـشـف الـهـويـة الإمـبـراطـوري**\n━━━━━━━━━━━━━━\n"
@@ -314,6 +318,7 @@ async def main_handler(event):
                    f"🔗 **اليوزر:** {target_un}\n🎖️ **الرتبة:** {rank}\n\n"
                    f"📜 **السجل التاريخي:**\n{history}\n━━━━━━━━━━━━━━")
             await event.reply(res)
+
 
     elif cmd == "حظر":
         response = await apply_penalty(event, target_id, "ban", target_name)
