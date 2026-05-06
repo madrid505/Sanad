@@ -33,7 +33,7 @@ class RadarDB:
             chat_id TEXT, user_id TEXT, rank TEXT, PRIMARY KEY (chat_id, user_id)
         )''')
         
-        # [جديد] إنشاء جدول سجل الجلسات التفصيلي
+        # إنشاء جدول سجل الجلسات التفصيلي
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS activity_logs (
             uid TEXT, 
             full_name TEXT, 
@@ -58,7 +58,29 @@ class RadarDB:
 
         self.conn.commit()
 
-    # --- [جديد] دوال سجل الجلسات الملكي ---
+    # --- [جديد] البحث عن مشرف محدد بالآيدي أو اليوزر أو الاسم ---
+    def find_admin(self, query):
+        """البحث في قاعدة البيانات عن مشرف واحد بناءً على كلمة البحث"""
+        q = f"%{query}%"
+        # نبحث في الآيدي أو الاسم أو اليوزر
+        self.cursor.execute("""
+            SELECT uid, full_name, username, admin_msgs, total_seconds, last_activity 
+            FROM users_radar 
+            WHERE uid = ? OR username LIKE ? OR full_name LIKE ?
+        """, (str(query), q, q))
+        return self.cursor.fetchone()
+
+    # --- [جديد] جلب جلسات مشرف محدد ليوم معين ---
+    def get_admin_sessions(self, uid, date_str):
+        self.cursor.execute("""
+            SELECT session_start, session_end, duration_minutes 
+            FROM activity_logs 
+            WHERE uid = ? AND date = ? 
+            ORDER BY session_start ASC
+        """, (str(uid), str(date_str)))
+        return self.cursor.fetchall()
+
+    # --- دوال سجل الجلسات ---
     def add_session_log(self, uid, full_name, start_time, end_time, duration, date_str):
         self.cursor.execute("""
             INSERT INTO activity_logs (uid, full_name, session_start, session_end, duration_minutes, date) 
@@ -70,9 +92,12 @@ class RadarDB:
         self.cursor.execute("SELECT full_name, session_start, session_end, duration_minutes FROM activity_logs WHERE date = ? ORDER BY session_start ASC", (str(date_str),))
         return self.cursor.fetchall()
 
-    # --- دالة التصفير اليومي ---
+    # --- دوال التصفير والتحكم ---
     def reset_admin_activity(self):
+        """تصفير عدادات النشاط بالكامل"""
         self.cursor.execute("UPDATE users_radar SET admin_msgs = 0, admin_actions = 0, total_seconds = 0")
+        # اختيارياً: يمكن مسح سجل الجلسات أيضاً عند التصفير اليدوي إذا رغب المالك
+        # self.cursor.execute("DELETE FROM activity_logs") 
         self.conn.commit()
 
     # --- تحديث الإحصائيات اللحظية ---
@@ -93,6 +118,7 @@ class RadarDB:
         self.cursor.execute("SELECT uid, full_name, admin_msgs, total_seconds, last_activity FROM users_radar WHERE admin_msgs > 0 OR total_seconds > 0 ORDER BY admin_msgs DESC")
         return self.cursor.fetchall()
 
+    # --- دوال رادار كشف الهوية (تم الحفاظ عليها كاملة) ---
     def get_user_from_radar(self, uid):
         self.cursor.execute("SELECT full_name, username, history, admin_msgs, admin_actions, total_seconds, last_activity FROM users_radar WHERE uid=?", (str(uid),))
         return self.cursor.fetchone()
@@ -106,6 +132,7 @@ class RadarDB:
             self.cursor.execute("UPDATE users_radar SET full_name=?, username=? WHERE uid=?", (str(full_name), str(username), uid_str))
         self.conn.commit()
 
+    # --- دوال الرتب وسجل المغادرين ---
     def set_rank(self, chat_id, user_id, rank_name):
         self.cursor.execute("INSERT OR REPLACE INTO user_ranks (chat_id, user_id, rank) VALUES (?, ?, ?)", (str(chat_id), str(user_id), str(rank_name)))
         self.conn.commit()
