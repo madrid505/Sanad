@@ -286,7 +286,7 @@ async def main_handler(event):
 
 
 
-    # [5] جلب بيانات الهدف (تليجرام أولاً ثم الرادار) لضمان الدقة مع await
+    # [5] جلب بيانات الهدف (تليجرام أولاً ثم الرادار) لضمان الدقة
     target_name = "غير معروف"
     target_un = "لا يوجد"
     try:
@@ -298,16 +298,15 @@ async def main_handler(event):
         if db_data:
             target_name, target_un = db_data[0], db_data[1]
 
-        # [6] تنفيذ الأوامر الإدارية (تعمل في كافة المجموعات ALLOWED_GROUPS)
-        if cmd == "كشف":
-        # إذا كان الهدف مشرفاً، نعطيه التقرير المجهري الشامل
+    # [6] تنفيذ الأوامر الإدارية (تبدأ من بداية السطر برمجياً)
+    if cmd == "كشف":
         rank = await get_user_rank(event.chat_id, target_id)
         if any(r in rank for r in ["المالك", "منشئ", "مشرف", "مدير"]):
-            from admin_monitor import get_specific_admin_report
+            # استدعاء تقرير المشرف المخصص (المجهر)
             res = get_specific_admin_report(str(target_id))
             await event.reply(res)
         else:
-            # إذا كان عضواً عادياً، نعطيه كشف الرادار التقليدي
+            # كشف رادار الأعضاء العاديين
             data = db.get_user_from_radar(str(target_id))
             history = data[2] if data and len(data) > 2 else "لا يوجد سجل سابق"
             res = (f"📋 **| كـشـف الـهـويـة الإمـبـراطـوري**\n━━━━━━━━━━━━━━\n"
@@ -316,9 +315,7 @@ async def main_handler(event):
                    f"📜 **السجل التاريخي:**\n{history}\n━━━━━━━━━━━━━━")
             await event.reply(res)
 
-
     elif cmd == "حظر":
-        # تطبيق العقوبة مع await كامل
         response = await apply_penalty(event, target_id, "ban", target_name)
         await event.reply(response)
 
@@ -337,7 +334,6 @@ async def main_handler(event):
     elif cmd == "تنزيل_مشرف":
         db.set_rank(str(event.chat_id), target_id, "عضو 👤")
         await event.reply(f"📉 تم تنزيل {target_name} إلى رتبة عضو.")
-            
 
 # --- بدء التشغيل النهائي ---
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
