@@ -19,8 +19,9 @@ ALLOWED_GROUPS = [
     -1002052564369, 
     -1002695848824  # الآيدي الجديد الذي طلبته
 ]
-# مسار فيديو القلب النيون الملكي المعتمد للتفاعل
-HEART_VIDEO_PATH = "1000062152.mp4"
+# مسار فيديو الألعاب النارية المعتمد والمعدل داخل مجلد media
+HEART_VIDEO_PATH = "media/InShot_20260521_231911130.mp4"
+
 
 client = TelegramClient('Monopoly_Radar_V5_1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 radar_lock = asyncio.Lock()
