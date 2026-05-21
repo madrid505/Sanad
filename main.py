@@ -21,6 +21,7 @@ ALLOWED_GROUPS = [
 ]
 # مسار فيديو الألعاب النارية المعتمد والمعدل داخل مجلد media
 HEART_VIDEO_PATH = "media/InShot_20260521_231911130.mp4"
+print(f"Checking video at: {os.path.abspath(HEART_VIDEO_PATH)} - Exists: {os.path.exists(HEART_VIDEO_PATH)}", flush=True)
 
 
 client = TelegramClient('Monopoly_Radar_V5_1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
