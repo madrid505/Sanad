@@ -19,9 +19,7 @@ ALLOWED_GROUPS = [
     -1002052564369, 
     -1002695848824  # الآيدي الجديد الذي طلبته
 ]
-# مسار فيديو الألعاب النارية المعتمد والمعدل داخل مجلد media
-HEART_VIDEO_PATH = "media/InShot_20260521_231911130.mp4"
-print(f"Checking video at: {os.path.abspath(HEART_VIDEO_PATH)} - Exists: {os.path.exists(HEART_VIDEO_PATH)}", flush=True)
+
 
 
 client = TelegramClient('Monopoly_Radar_V5_1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
@@ -207,15 +205,7 @@ async def main_handler(event):
     fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
     un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
     await check_user_radar(event.sender_id, fn, un)
-    # 🌟 [مستشعر التفاعل البصري الفوري والرد التلقائي] 🌟
-    if (event.sender_id == OWNER_ID and text == "السلام عليكم") or (cmd == "انس") or (cmd == "أنس"):
-        if os.path.exists(HEART_VIDEO_PATH):
-            try:
-                await event.reply(file=HEART_VIDEO_PATH)
-                return  
-            except Exception as e:
-                print(f"Error sending heart video: {e}", flush=True)
-                
+    
     # [2] نظام تتبع نشاط المشرفين (الرادار الجديد)
     rank_text = await get_user_rank(event.chat_id, event.sender_id)
     is_admin = any(r in rank_text for r in ["المالك", "منشئ", "مشرف", "مدير"])
