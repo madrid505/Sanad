@@ -241,10 +241,12 @@ async def main_handler(event):
     if not parts: return
     cmd = parts[0]
 
-    # [1] تحديث الرادار اللحظي للمرسل (كاشف الأسماء) - يعمل في كل المجموعات
-    fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
-    un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
-    await check_user_radar(event.sender_id, fn, un)
+    # [1] تحديث الرادار اللحظي للمرسل (مع تأمين ضد الانهيار)
+    if event.sender:
+        fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
+        un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
+        await check_user_radar(event.sender_id, fn, un)
+
     
     # [2] نظام تتبع نشاط المشرفين (الرادار الجديد)
     rank_text = await get_user_rank(event.chat_id, event.sender_id)
