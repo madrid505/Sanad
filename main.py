@@ -215,7 +215,7 @@ async def main_handler(event):
     # مسافة بادئة 4
     text = event.raw_text
     
-    # مسافة بادئة 4 (هنا كان الخطأ، يجب أن تكون على نفس مستوى السطر أعلاه)
+    # مسافة بادئة 4
     # [0] نظام الرادار الأمني للمحتوى (فحص الصور)
     if event.photo or (event.document and event.document.mime_type.startswith('image/')):
         # مسافة بادئة 8
@@ -242,9 +242,10 @@ async def main_handler(event):
     cmd = parts[0]
 
     # [1] تحديث الرادار اللحظي للمرسل (مع تأمين ضد الانهيار)
+    # تم استبدال الكود بـ getattr لضمان عدم حدوث AttributeError
     if event.sender:
-        fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
-        un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
+        fn = f"{getattr(event.sender, 'first_name', '')} {getattr(event.sender, 'last_name', '') or ''}".strip()
+        un = f"@{event.sender.username}" if getattr(event.sender, 'username', None) else "لا يوجد"
         await check_user_radar(event.sender_id, fn, un)
 
     
