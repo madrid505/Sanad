@@ -1,22 +1,10 @@
-import os
-import subprocess
-import sys
-
-# تثبيت المكتبة فوراً قبل استيراد أي شيء آخر
-try:
-    import requests
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
-    import requests
-
 import asyncio
+import os
 from datetime import datetime, timedelta
 
 from telethon import TelegramClient, events, types, functions, errors
 from database import db
 from admin_monitor import track_admin_activity, get_admin_report, get_detailed_session_report, get_specific_admin_report
-from security_handler import perform_punishment, report_violation, is_content_inappropriate
-
 
 
 # --- إعدادات البوت الملكي ---
@@ -204,49 +192,19 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
         return f"⚖️ **| مـحـكـمـة مـونـوبـولي**\n━━━━━━━━━━━━━━\n👤 **المستهدف:** {target_name}\n🆔 `{target_id}`\n✅ **الإجراء:** {act_text}\n━━━━━━━━━━━━━━"
     except Exception as e: return f"❌ فشل: {str(e)}"
         
-# --- [6] معالج الأوامر المستقل للصور (النسخة الإمبراطورية الصارمة) ---
+# --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار المخصص) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
-async def media_handler(event):
-    # نتحقق فقط من وجود وسائط
-    if event.photo or (event.document and getattr(event.document, 'mime_type', '').startswith('image/')):
-        try:
-            file_path = await event.download_media()
-            if not file_path: return # إذا فشل التحميل لا نكمل
-            
-            if await is_content_inappropriate(file_path):
-                # تنفيذ العقوبة
-                await perform_punishment(event, client)
-                
-                # إرسال التنبيه
-                REPORT_GROUPS = [-1003527383745, -1003721123319, -1003960606586]
-                for gid in REPORT_GROUPS:
-                    try: await report_violation(event, client, gid)
-                    except: continue
-                
-                if os.path.exists(file_path): os.remove(file_path)
-                return # تم الحذف، لا حاجة لمعالجة نصوص
-
-        except Exception as e:
-            print(f"DEBUG: خطأ في معالجة الصورة: {e}")
-
-# --- [7] معالج الأوامر النصية (منفصل) ---
-@client.on(events.NewMessage(chats=ALLOWED_GROUPS))
-async def text_handler(event):
-    # جلب المرسل بأمان
-    sender = await event.get_sender()
-    if not sender or getattr(sender, 'bot', False): return
-
-    # تحديث الرادار (فقط للنصوص)
+async def main_handler(event):
+    if not event.sender_id or event.sender.bot: return
     text = event.raw_text
-    if text:
-        fn = f"{getattr(sender, 'first_name', '')} {getattr(sender, 'last_name', '') or ''}".strip()
-        un = f"@{sender.username}" if getattr(sender, 'username', None) else "لا يوجد"
-        await check_user_radar(event.sender_id, fn, un)
+    parts = text.split()
+    if not parts: return
+    cmd = parts[0]
 
-    # هنا تكمل معالجة الأوامر (cmd == "كشف", "حظر", إلخ) كما في الكود الأصلي
-    # ...
-
-    
+    # [1] تحديث الرادار اللحظي للمرسل (كاشف الأسماء) - يعمل في كل المجموعات
+    fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
+    un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
+    await check_user_radar(event.sender_id, fn, un)
     
     # [2] نظام تتبع نشاط المشرفين (الرادار الجديد)
     rank_text = await get_user_rank(event.chat_id, event.sender_id)
