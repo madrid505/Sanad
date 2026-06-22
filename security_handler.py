@@ -4,8 +4,8 @@ from telethon import functions, types
 from datetime import datetime, timedelta
 
 # إعدادات الخدمة (سأضع لك هيكلاً جاهزاً للربط)
-SIGHTENGINE_API_USER = 'YOUR_API_USER'
-SIGHTENGINE_API_SECRET = 'YOUR_API_SECRET'
+SIGHTENGINE_API_USER = '780815925'
+SIGHTENGINE_API_SECRET = 'GwP6ygqN3JzPve43Jsfe9HbSPRGSaFqu'
 
 async def is_content_inappropriate(file_path):
     """فحص الصورة باستخدام Sightengine"""
