@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from telethon import TelegramClient, events, types, functions, errors
 from database import db
 from admin_monitor import track_admin_activity, get_admin_report, get_detailed_session_report, get_specific_admin_report
-from security_handler import process_security_violation, is_content_inappropriate
+from security_handler import perform_punishment, report_violation, is_content_inappropriate
 
 
 
