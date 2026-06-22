@@ -222,18 +222,20 @@ async def main_handler(event):
         file_path = await event.download_media()
         # ... تكملة الكود هنا ...
 
-        
         # فحص محتوى الصورة
         if await is_content_inappropriate(file_path):
-            # آيدي المجموعات التي تريد إرسال التنبيه فيها
             REPORT_GROUPS = [-1003527383745, -1003721123319, -1003960606586]
             
-            # تنفيذ العقوبة (حذف + كتم)
+            # تنفيذ العقوبة (مرة واحدة فقط)
+            await perform_punishment(event, client)
+            
+            # إرسال التنبيه لكل المجموعات الإدارية
             for gid in REPORT_GROUPS:
                 try:
-                    await process_security_violation(event, client, gid)
+                    await report_violation(event, client, gid)
                 except: continue
-            return # إيقاف المعالجة لأن الصورة تم حذفها
+            return 
+
             
     parts = text.split()
     if not parts: return
