@@ -3,7 +3,7 @@ import requests
 from telethon import functions, types
 from datetime import datetime, timedelta
 
-# إعدادات الخدمة (سأضع لك هيكلاً جاهزاً للربط)
+# إعدادات الخدمة
 SIGHTENGINE_API_USER = '780815925'
 SIGHTENGINE_API_SECRET = 'GwP6ygqN3JzPve43Jsfe9HbSPRGSaFqu'
 
@@ -27,13 +27,13 @@ async def is_content_inappropriate(file_path):
         logging.error(f"خطأ في الاتصال بخدمة الفحص: {e}")
     return False
 
-async def process_security_violation(event, client, admin_group_id):
-    """تنفيذ العقوبة وإبلاغ الإدارة"""
-    sender = await event.get_sender()
-    sender_name = f"{sender.first_name} {sender.last_name or ''}".strip()
-    
+async def perform_punishment(event, client):
+    """تنفيذ الحذف والكتم (يتم استدعاؤها مرة واحدة فقط)"""
     # 1. الحذف الفوري
-    await event.delete()
+    try:
+        await event.delete()
+    except Exception as e:
+        logging.error(f"خطأ أثناء حذف الرسالة: {e}")
     
     # 2. العقوبة (كتم لمدة 24 ساعة)
     try:
@@ -42,17 +42,26 @@ async def process_security_violation(event, client, admin_group_id):
             participant=event.sender_id,
             banned_rights=types.ChatBannedRights(until_date=datetime.now() + timedelta(hours=24), send_messages=True)
         ))
-    except: pass
+    except Exception as e:
+        logging.error(f"خطأ أثناء كتم العضو: {e}")
+    return True
 
-    # 3. إبلاغ الإدارة
-    alert_text = (
-        f"🚨 **| تـم رصـد وتـحـيـيـد مـخـالـفـة**\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"👤 **المخالف:** [{sender_name}](tg://user?id={event.sender_id})\n"
-        f"🆔 `{event.sender_id}`\n"
-        f"🛡️ **الإجراء:** تم الحذف + الكتم (24س).\n"
-        f"⚠️ **يرجى من الإدارة مراجعة العضو واتخاذ إجراء الطرد.**\n"
-        f"━━━━━━━━━━━━━━"
-    )
-    
-    await client.send_message(admin_group_id, alert_text)
+async def report_violation(event, client, admin_group_id):
+    """إرسال التنبيه للإدارة (يتم استدعاؤها لكل مجموعة إدارية)"""
+    try:
+        sender = await event.get_sender()
+        sender_name = f"{sender.first_name} {sender.last_name or ''}".strip()
+        
+        alert_text = (
+            f"🚨 **| تـم رصـد وتـحـيـيـد مـخـالـفـة**\n"
+            f"━━━━━━━━━━━━━━\n"
+            f"👤 **المخالف:** [{sender_name}](tg://user?id={event.sender_id})\n"
+            f"🆔 `{event.sender_id}`\n"
+            f"🛡️ **الإجراء:** تم الحذف + الكتم (24س).\n"
+            f"⚠️ **يرجى من الإدارة مراجعة العضو واتخاذ إجراء الطرد.**\n"
+            f"━━━━━━━━━━━━━━"
+        )
+        
+        await client.send_message(admin_group_id, alert_text)
+    except Exception as e:
+        logging.error(f"خطأ أثناء إرسال تقرير الإدارة: {e}")
