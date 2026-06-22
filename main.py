@@ -204,51 +204,47 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
         return f"⚖️ **| مـحـكـمـة مـونـوبـولي**\n━━━━━━━━━━━━━━\n👤 **المستهدف:** {target_name}\n🆔 `{target_id}`\n✅ **الإجراء:** {act_text}\n━━━━━━━━━━━━━━"
     except Exception as e: return f"❌ فشل: {str(e)}"
         
-# --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار المخصص) ---
-# --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار المخصص) ---
+# --- [6] معالج الأوامر المستقل للصور (النسخة الإمبراطورية الصارمة) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
-async def main_handler(event):
-    # 1. جلب المرسل بأمان
-    sender = await event.get_sender()
-    if not sender or getattr(sender, 'bot', False):
-        return
-
-    # 2. نظام الرادار الأمني للمحتوى (فحص الصور والملفات)
-    # نتحقق من وجود صورة أو ملف وسائط
-    is_media = event.photo or (event.document and getattr(event.document, 'mime_type', '').startswith('image/'))
-    
-    if is_media:
+async def media_handler(event):
+    # نتحقق فقط من وجود وسائط
+    if event.photo or (event.document and getattr(event.document, 'mime_type', '').startswith('image/')):
         try:
             file_path = await event.download_media()
-            # فحص محتوى الصورة
+            if not file_path: return # إذا فشل التحميل لا نكمل
+            
             if await is_content_inappropriate(file_path):
-                REPORT_GROUPS = [-1003527383745, -1003721123319, -1003960606586]
-                
                 # تنفيذ العقوبة
                 await perform_punishment(event, client)
                 
-                # إرسال التنبيه للإدارة
+                # إرسال التنبيه
+                REPORT_GROUPS = [-1003527383745, -1003721123319, -1003960606586]
                 for gid in REPORT_GROUPS:
-                    try:
-                        await report_violation(event, client, gid)
+                    try: await report_violation(event, client, gid)
                     except: continue
                 
-                # تنظيف الملف بعد الفحص
                 if os.path.exists(file_path): os.remove(file_path)
-                return # خروج لأن الرسالة تم حذفها
+                return # تم الحذف، لا حاجة لمعالجة نصوص
+
         except Exception as e:
-            print(f"خطأ في فحص الصورة: {e}")
+            print(f"DEBUG: خطأ في معالجة الصورة: {e}")
 
-    # 3. معالجة الأوامر النصية
+# --- [7] معالج الأوامر النصية (منفصل) ---
+@client.on(events.NewMessage(chats=ALLOWED_GROUPS))
+async def text_handler(event):
+    # جلب المرسل بأمان
+    sender = await event.get_sender()
+    if not sender or getattr(sender, 'bot', False): return
+
+    # تحديث الرادار (فقط للنصوص)
     text = event.raw_text
-    if not text: return
-    parts = text.split()
-    cmd = parts[0]
+    if text:
+        fn = f"{getattr(sender, 'first_name', '')} {getattr(sender, 'last_name', '') or ''}".strip()
+        un = f"@{sender.username}" if getattr(sender, 'username', None) else "لا يوجد"
+        await check_user_radar(event.sender_id, fn, un)
 
-    # تحديث الرادار (تم وضعه هنا ليعمل مع الأوامر والرسائل العادية)
-    fn = f"{getattr(sender, 'first_name', '')} {getattr(sender, 'last_name', '') or ''}".strip()
-    un = f"@{sender.username}" if getattr(sender, 'username', None) else "لا يوجد"
-    await check_user_radar(event.sender_id, fn, un)
+    # هنا تكمل معالجة الأوامر (cmd == "كشف", "حظر", إلخ) كما في الكود الأصلي
+    # ...
 
     
     
