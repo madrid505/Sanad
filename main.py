@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from telethon import TelegramClient, events, types, functions, errors
 from database import db
 from admin_monitor import track_admin_activity, get_admin_report, get_detailed_session_report, get_specific_admin_report
+from security_handler import process_security_violation, is_content_inappropriate
 
 
 # --- إعدادات البوت الملكي ---
@@ -197,6 +198,23 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
 async def main_handler(event):
     if not event.sender_id or event.sender.bot: return
     text = event.raw_text
+        # [0] نظام الرادار الأمني للمحتوى (فحص الصور)
+    if event.photo or (event.document and event.document.mime_type.startswith('image/')):
+        # تحميل الوسائط للفحص
+        file_path = await event.download_media()
+        
+        # فحص محتوى الصورة
+        if await is_content_inappropriate(file_path):
+            # آيدي المجموعات التي تريد إرسال التنبيه فيها
+            REPORT_GROUPS = [-1003527383745, -1003721123319, -1003960606586]
+            
+            # تنفيذ العقوبة (حذف + كتم)
+            for gid in REPORT_GROUPS:
+                try:
+                    await process_security_violation(event, client, gid)
+                except: continue
+            return # إيقاف المعالجة لأن الصورة تم حذفها
+            
     parts = text.split()
     if not parts: return
     cmd = parts[0]
