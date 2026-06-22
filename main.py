@@ -207,7 +207,10 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
 # --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار المخصص) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
-    if not event.sender_id or event.sender.bot: return
+    # بدلاً من الكود القديم، استخدم هذا الكود الآمن:
+if not event.sender_id or (event.sender is not None and event.sender.bot):
+    return
+
     text = event.raw_text
         # [0] نظام الرادار الأمني للمحتوى (فحص الصور)
     if event.photo or (event.document and event.document.mime_type.startswith('image/')):
