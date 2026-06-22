@@ -205,49 +205,52 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
     except Exception as e: return f"❌ فشل: {str(e)}"
         
 # --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار المخصص) ---
+# --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار المخصص) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
-    # مسافة بادئة 4
-    if not event.sender_id or (event.sender is not None and event.sender.bot):
-        # مسافة بادئة 8
+    # 1. جلب المرسل بأمان
+    sender = await event.get_sender()
+    if not sender or getattr(sender, 'bot', False):
         return
 
-    # مسافة بادئة 4
-    text = event.raw_text
+    # 2. نظام الرادار الأمني للمحتوى (فحص الصور والملفات)
+    # نتحقق من وجود صورة أو ملف وسائط
+    is_media = event.photo or (event.document and getattr(event.document, 'mime_type', '').startswith('image/'))
     
-    # مسافة بادئة 4
-    # [0] نظام الرادار الأمني للمحتوى (فحص الصور)
-    if event.photo or (event.document and event.document.mime_type.startswith('image/')):
-        # مسافة بادئة 8
-        file_path = await event.download_media()
-        # ... تكملة الكود هنا ...
+    if is_media:
+        try:
+            file_path = await event.download_media()
+            # فحص محتوى الصورة
+            if await is_content_inappropriate(file_path):
+                REPORT_GROUPS = [-1003527383745, -1003721123319, -1003960606586]
+                
+                # تنفيذ العقوبة
+                await perform_punishment(event, client)
+                
+                # إرسال التنبيه للإدارة
+                for gid in REPORT_GROUPS:
+                    try:
+                        await report_violation(event, client, gid)
+                    except: continue
+                
+                # تنظيف الملف بعد الفحص
+                if os.path.exists(file_path): os.remove(file_path)
+                return # خروج لأن الرسالة تم حذفها
+        except Exception as e:
+            print(f"خطأ في فحص الصورة: {e}")
 
-        # فحص محتوى الصورة
-        if await is_content_inappropriate(file_path):
-            REPORT_GROUPS = [-1003527383745, -1003721123319, -1003960606586]
-            
-            # تنفيذ العقوبة (مرة واحدة فقط)
-            await perform_punishment(event, client)
-            
-            # إرسال التنبيه لكل المجموعات الإدارية
-            for gid in REPORT_GROUPS:
-                try:
-                    await report_violation(event, client, gid)
-                except: continue
-            return 
-
-            
+    # 3. معالجة الأوامر النصية
+    text = event.raw_text
+    if not text: return
     parts = text.split()
-    if not parts: return
     cmd = parts[0]
 
-    # [1] تحديث الرادار اللحظي للمرسل (مع تأمين ضد الانهيار)
-    # تم استبدال الكود بـ getattr لضمان عدم حدوث AttributeError
-    if event.sender:
-        fn = f"{getattr(event.sender, 'first_name', '')} {getattr(event.sender, 'last_name', '') or ''}".strip()
-        un = f"@{event.sender.username}" if getattr(event.sender, 'username', None) else "لا يوجد"
-        await check_user_radar(event.sender_id, fn, un)
+    # تحديث الرادار (تم وضعه هنا ليعمل مع الأوامر والرسائل العادية)
+    fn = f"{getattr(sender, 'first_name', '')} {getattr(sender, 'last_name', '') or ''}".strip()
+    un = f"@{sender.username}" if getattr(sender, 'username', None) else "لا يوجد"
+    await check_user_radar(event.sender_id, fn, un)
 
+    
     
     # [2] نظام تتبع نشاط المشرفين (الرادار الجديد)
     rank_text = await get_user_rank(event.chat_id, event.sender_id)
