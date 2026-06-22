@@ -8,7 +8,7 @@ SIGHTENGINE_API_USER = '780815925'
 SIGHTENGINE_API_SECRET = 'GwP6ygqN3JzPve43Jsfe9HbSPRGSaFqu'
 
 async def is_content_inappropriate(file_path):
-    """فحص الصورة باستخدام Sightengine"""
+    """فحص الصورة باستخدام Sightengine مع تأمين ضد الانهيار"""
     try:
         with open(file_path, 'rb') as f:
             params = {
@@ -20,15 +20,22 @@ async def is_content_inappropriate(file_path):
             response = requests.post('https://api.sightengine.com/1.0/check.json', files=files, data=params)
             data = response.json()
             
-            # إذا كانت نسبة الإباحية تتجاوز 70%
-            if data['nudity']['raw'] > 0.70:
-                return True
+            # التأكد من نجاح الاستجابة ووجود المفاتيح المطلوبة قبل محاولة الوصول إليها
+            if data.get('status') == 'success':
+                nudity_data = data.get('nudity', {})
+                # التحقق من وجود النسبة وكونها أكبر من 70%
+                if nudity_data.get('raw', 0) > 0.70:
+                    return True
+            else:
+                logging.warning(f"Sightengine لم ينجح في الفحص: {data.get('error', 'unknown error')}")
+                
     except Exception as e:
         logging.error(f"خطأ في الاتصال بخدمة الفحص: {e}")
+    
     return False
 
 async def perform_punishment(event, client):
-    """تنفيذ الحذف والكتم (يتم استدعاؤها مرة واحدة فقط)"""
+    """تنفيذ الحذف والكتم"""
     # 1. الحذف الفوري
     try:
         await event.delete()
@@ -40,23 +47,28 @@ async def perform_punishment(event, client):
         await client(functions.channels.EditBannedRequest(
             channel=event.chat_id,
             participant=event.sender_id,
-            banned_rights=types.ChatBannedRights(until_date=datetime.now() + timedelta(hours=24), send_messages=True)
+            banned_rights=types.ChatBannedRights(
+                until_date=datetime.now() + timedelta(hours=24), 
+                send_messages=True
+            )
         ))
     except Exception as e:
         logging.error(f"خطأ أثناء كتم العضو: {e}")
     return True
 
 async def report_violation(event, client, admin_group_id):
-    """إرسال التنبيه للإدارة (يتم استدعاؤها لكل مجموعة إدارية)"""
+    """إرسال التنبيه للإدارة"""
     try:
         sender = await event.get_sender()
-        sender_name = f"{sender.first_name} {sender.last_name or ''}".strip()
+        # التأكد من وجود البيانات قبل الصياغة
+        sender_first = getattr(sender, 'first_name', 'مستخدم')
+        sender_id = getattr(event, 'sender_id', 'غير معروف')
         
         alert_text = (
             f"🚨 **| تـم رصـد وتـحـيـيـد مـخـالـفـة**\n"
             f"━━━━━━━━━━━━━━\n"
-            f"👤 **المخالف:** [{sender_name}](tg://user?id={event.sender_id})\n"
-            f"🆔 `{event.sender_id}`\n"
+            f"👤 **المخالف:** [{sender_first}](tg://user?id={sender_id})\n"
+            f"🆔 `{sender_id}`\n"
             f"🛡️ **الإجراء:** تم الحذف + الكتم (24س).\n"
             f"⚠️ **يرجى من الإدارة مراجعة العضو واتخاذ إجراء الطرد.**\n"
             f"━━━━━━━━━━━━━━"
