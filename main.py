@@ -1,7 +1,7 @@
 import os
 
 # فرض التوكن الجديد وتجاهل أي توكن قديم في متغيرات البيئة للسيرفر
-os.environ["BOT_TOKEN"] = "8393076766:AAHYIo1sB1dmprph28C_f1dkzZzfrWITyZ8"
+os.environ["BOT_TOKEN"] = "8393076766:AAHW-jO5RjC0ARWlIs3Jf3VkAlrzyFvYz2g"
 
 import asyncio
 from datetime import datetime, timedelta
