@@ -1,5 +1,9 @@
-import asyncio
 import os
+
+# فرض التوكن الجديد وتجاهل أي توكن قديم في متغيرات البيئة للسيرفر
+os.environ["BOT_TOKEN"] = "8393076766:AAHYIo1sB1dmprph28C_f1dkzZzfrWITyZ8"
+
+import asyncio
 from datetime import datetime, timedelta
 
 from telethon import TelegramClient, events, types, functions, errors
@@ -10,14 +14,16 @@ from admin_monitor import track_admin_activity, get_admin_report, get_detailed_s
 # --- إعدادات البوت الملكي ---
 API_ID = 33183154
 API_HASH = 'ccb195afa05973cf544600ad3c313b84'
-BOT_TOKEN = '8393076766:AAHYIo1sB1dmprph28C_f1dkzZzfrWITyZ8'
+BOT_TOKEN = os.environ.get("BOT_TOKEN")  # سيأخذ القيمة الجديدة المفروضة للتو
 OWNER_ID = 5010882230
+
 # --- تحديث قائمة المجموعات المسموحة ---
 ALLOWED_GROUPS = [
     -1004432647304,
     -1002052564369,
     -1004477090207
 ]
+
 
 
 
