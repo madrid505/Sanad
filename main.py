@@ -32,21 +32,27 @@ ALLOWED_GROUPS = [
 client = TelegramClient('Monopoly_Radar_V5_1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 radar_lock = asyncio.Lock()
 
-# --- [1] دالة جلب الرتبة الملكية ---
+# --- [1] دالة جلب الرتبة الملكية (المحدثة والآمنة) ---
 async def get_user_rank(chat_id, user_id):
     if user_id == OWNER_ID: return "المالك الأساسي 👑"
-    # أولاً: جلب الرتبة من قاعدة البيانات (الرتب التي رفعتها أنت يدوياً)
+    
+    # أولاً: جلب الرتبة من قاعدة البيانات (الرتب التي رفعتها أنت يدوياً عبر البوت)
     saved_rank = db.get_rank(str(chat_id), user_id)
     if saved_rank and saved_rank != "عضو 👤":
         return saved_rank
     
-    # ثانياً: إذا لم يوجد في القاعدة، نتحقق من تليجرام
+    # ثانياً: التحقق الفوري والدقيق من صلاحيات تليجرام الرسمية
     try:
-        permissions = await client(functions.channels.GetParticipantRequest(channel=chat_id, participant=user_id))
-        if isinstance(permissions.participant, types.ChannelParticipantCreator): return "منشئ المجموعة 🎖️"
-        if isinstance(permissions.participant, types.ChannelParticipantAdmin): return "مشرف الإدارة 🛡️"
-    except: pass
+        chat_participants = await client.get_permissions(chat_id, user_id)
+        if chat_participants.is_creator:
+            return "منشئ المجموعة 🎖️"
+        elif chat_participants.is_admin:
+            return "مشرف الإدارة 🛡️"
+    except Exception as e:
+        print(f"Error getting permissions for {user_id}: {e}")
+        
     return "عضو 👤"
+
 
 
 # --- [2] محرك الرادار وكاشف الانتحال الصارم ---
