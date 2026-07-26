@@ -199,19 +199,25 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
         return f"⚖️ **| مـحـكـمـة مـونـوبـولي**\n━━━━━━━━━━━━━━\n👤 **المستهدف:** {target_name}\n🆔 `{target_id}`\n✅ **الإجراء:** {act_text}\n━━━━━━━━━━━━━━"
     except Exception as e: return f"❌ فشل: {str(e)}"
         
-# --- [6] معالج الأوامر (النسخة الإمبراطورية المحدثة بنظام الرادار المخصص) ---
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
-    if not event.sender_id or event.sender.bot: return
-    text = event.raw_text
+    if not event.sender_id: 
+        return
+    
+    sender = await event.get_sender()
+    if not sender or getattr(sender, 'bot', False): 
+        return
+
+    text = event.raw_text or ""
     parts = text.split()
     if not parts: return
     cmd = parts[0]
 
     # [1] تحديث الرادار اللحظي للمرسل (كاشف الأسماء) - يعمل في كل المجموعات
-    fn = f"{event.sender.first_name} {event.sender.last_name or ''}".strip()
-    un = f"@{event.sender.username}" if event.sender.username else "لا يوجد"
+    fn = f"{sender.first_name} {sender.last_name or ''}".strip()
+    un = f"@{sender.username}" if sender.username else "لا يوجد"
     await check_user_radar(event.sender_id, fn, un)
+
     
     # [2] نظام تتبع نشاط المشرفين (الرادار الجديد)
     rank_text = await get_user_rank(event.chat_id, event.sender_id)
