@@ -154,30 +154,62 @@ async def monitor_admin_log():
         await asyncio.sleep(30)
         
 # --- [5.5] مهمة التصفير الملكي (كل 24 ساعة عند منتصف الليل) ---
+# --- [5.5] مهمة التصفير والتقارير التلقائية (كل 24 ساعة عند منتصف الليل) ---
 async def daily_reset_task():
+    TARGET_REPORT_GROUP = -1004477090207 # مجموعة النشر التلقائي المحددة
+    
     while True:
         try:
             now = datetime.now()
-            # حساب الوقت المتبقي لمنتصف الليل بدقة
             tomorrow = now + timedelta(days=1)
             reset_time = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-            wait_seconds = (reset_time - now).total_seconds()
             
-            await asyncio.sleep(wait_seconds)
+            # حساب الوقت المتبقي حتى قبل منتصف الليل بدقيقة واحدة (23:59) لإرسال التقرير
+            report_time = reset_time - timedelta(minutes=1)
+            wait_seconds_report = (report_time - now).total_seconds()
             
-            # تنفيذ التصفير في قاعدة البيانات
+            if wait_seconds_report > 0:
+                await asyncio.sleep(wait_seconds_report)
+            
+            # 1. جلب وإرسال تقرير الرادار والنشاط المفصل تلقائياً في المجموعة المحددة
+            try:
+                from admin_monitor import get_admin_report, get_detailed_session_report
+                
+                # إرسال تقرير الرادار العام في المجموعة
+                radar_rep = get_admin_report()
+                await client.send_message(TARGET_REPORT_GROUP, "📊 **| تـقـريـر الـرادار والـنـشـاط الـتـلـقـائي (نهاية اليوم)**\n\n" + radar_rep)
+                
+                # إرسال التقرير المفصل في المجموعة
+                detailed_rep = get_detailed_session_report()
+                if len(detailed_rep) > 4000:
+                    for i in range(0, len(detailed_rep), 4000):
+                        await client.send_message(TARGET_REPORT_GROUP, detailed_rep[i:i+4000])
+                else:
+                    await client.send_message(TARGET_REPORT_GROUP, detailed_rep)
+            except Exception as e:
+                print(f"Error sending auto reports to group: {e}")
+
+            # الانتظار الدقيقة الأخيرة حتى منتصف الليل تماماً (00:00)
+            now_after_report = datetime.now()
+            wait_seconds_reset = (reset_time - now_after_report).total_seconds()
+            if wait_seconds_reset > 0:
+                await asyncio.sleep(wait_seconds_reset)
+            
+            # 2. تنفيذ التصفير في قاعدة البيانات
             db.reset_admin_activity()
             
-            # إرسال إشعار للمالك بنجاح التصفير
+            # 3. إشعار المالك فقط (أو المجموعة) بنجاح التصفير وبداية يوم جديد
             reset_msg = (f"♻️ **| إشـعـار الإدارة الـمـلـكـي**\n"
                         f"━━━━━━━━━━━━━━\n"
                         f"✅ تم تصفير عدادات نشاط المشرفين بنجاح.\n"
                         f"📅 يبدأ الآن سجل يوم جديد: `{datetime.now().strftime('%Y-%m-%d')}`\n"
                         f"━━━━━━━━━━━━━━")
             await client.send_message(OWNER_ID, reset_msg)
+            
         except Exception as e:
-            print(f"Error in reset task: {e}")
+            print(f"Error in reset & report task: {e}")
             await asyncio.sleep(60)
+
             
 async def apply_penalty(event, target_id, action, target_name, duration_mins=None):
     if target_id == OWNER_ID: return "❌ لا يمكن تنفيذ عقوبات على المالك الأساسي."
