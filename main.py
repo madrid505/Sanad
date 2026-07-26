@@ -372,26 +372,29 @@ async def main_handler(event):
                    f"📜 **السجل التاريخي:**\n{history}\n━━━━━━━━━━━━━━")
             await event.reply(res)
 
+    elif cmd in ["حظر", "كتم", "فك_الحظر", "الغاء_الحظر", "الغاء_الكتم", "فك", "رفع_مشرف", "تنزيل_مشرف"]:
+        if not target_id:
+            return await event.reply("⚠️ **| يرجى الرد على رسالة المستخدم أو كتابة الآيدي/اليوزر لتنفيذ الأمر.**")
 
-    elif cmd == "حظر":
-        response = await apply_penalty(event, target_id, "ban", target_name)
-        await event.reply(response)
+        if cmd == "حظر":
+            response = await apply_penalty(event, target_id, "ban", target_name)
+            await event.reply(response)
 
-    elif cmd == "كتم":
-        response = await apply_penalty(event, target_id, "mute", target_name, 60)
-        await event.reply(response)
+        elif cmd == "كتم":
+            response = await apply_penalty(event, target_id, "mute", target_name, 60)
+            await event.reply(response)
 
-    elif cmd in ["فك_الحظر", "الغاء_الحظر", "الغاء_الكتم", "فك"]:
-        response = await apply_penalty(event, target_id, "unblock", target_name)
-        await event.reply(response)
+        elif cmd in ["فك_الحظر", "الغاء_الحظر", "الغاء_الكتم", "فك"]:
+            response = await apply_penalty(event, target_id, "unblock", target_name)
+            await event.reply(response)
 
-    elif cmd == "رفع_مشرف":
-        db.set_rank(str(event.chat_id), target_id, "مشرف الإدارة 🛡️")
-        await event.reply(f"✅ تم رفع {target_name} إلى رتبة مشرف.")
+        elif cmd == "رفع_مشرف":
+            db.set_rank(str(event.chat_id), target_id, "مشرف الإدارة 🛡️")
+            await event.reply(f"✅ تم رفع [{target_name}](tg://user?id={target_id}) إلى رتبة مشرف بنجاح.")
 
-    elif cmd == "تنزيل_مشرف":
-        db.set_rank(str(event.chat_id), target_id, "عضو 👤")
-        await event.reply(f"📉 تم تنزيل {target_name} إلى رتبة عضو.")
+        elif cmd == "تنزيل_مشرف":
+            db.set_rank(str(event.chat_id), target_id, "عضو 👤")
+            await event.reply(f"📉 تم تنزيل [{target_name}](tg://user?id={target_id}) إلى رتبة عضو.")
 
 # --- بدء التشغيل النهائي ---
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
