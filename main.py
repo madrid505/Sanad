@@ -241,10 +241,16 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
         return f"⚖️ **| مـحـكـمـة مـونـوبـولي**\n━━━━━━━━━━━━━━\n👤 **المستهدف:** {target_name}\n🆔 `{target_id}`\n✅ **الإجراء:** {act_text}\n━━━━━━━━━━━━━━"
     except Exception as e: return f"❌ فشل: {str(e)}"
         
+
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
     if not event.sender_id: 
         return
+    
+    sender = await event.get_sender()
+    if not sender or getattr(sender, 'bot', False): 
+        return
+
     
     sender = await event.get_sender()
     if not sender or getattr(sender, 'bot', False): 
