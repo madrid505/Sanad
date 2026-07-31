@@ -50,6 +50,8 @@ async def handle_help_messages(event, client):
         beneficiary_name = await get_user_display_name(client, target_user_id)
         
         provider_user = await event.get_sender()
+        if not provider_user:
+            return
         provider_id = str(provider_user.id)
         provider_name = f"{provider_user.first_name or ''} {provider_user.last_name or ''}".strip() or "مشرف/عضو"
 
@@ -104,7 +106,7 @@ async def handle_help_messages(event, client):
         await event.reply(response_text)
 
 # --- 4. أمر كشف المساعدات العام مع تقسيم صفحات (Pagination) ---
-async def kashf_help_command(event, client, page=1):
+async def kashf_help_command(event, client, page=1, is_callback=False):
     conn = sqlite3.connect("help_system.db")
     cursor = conn.cursor()
     cursor.execute("SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps ORDER BY id DESC")
@@ -113,7 +115,7 @@ async def kashf_help_command(event, client, page=1):
 
     if not rows:
         msg = "📭 لا توجد أي مساعدات مسجلة في النظام حتى الآن."
-        if event.is_callback:
+        if is_callback:
             await event.edit(msg)
         else:
             await event.reply(msg)
@@ -143,7 +145,7 @@ async def kashf_help_command(event, client, page=1):
     if nav_buttons:
         buttons.append(nav_buttons)
 
-    if event.is_callback:
+    if is_callback:
         await event.edit(text, buttons=buttons)
     else:
         await event.reply(text, buttons=buttons)
@@ -152,17 +154,19 @@ async def kashf_help_command(event, client, page=1):
 def setup_help_system(client, allowed_groups):
     @client.on(events.NewMessage(chats=allowed_groups))
     async def help_messages_listener(event):
-        text = event.raw_text or ""
+        text = (event.raw_text or "").strip()
         if text.startswith("تمت مساعدته") or text == "بحث":
             await handle_help_messages(event, client)
         elif text == "كشف المساعدات" or text == "/kashf":
-            await kashf_help_command(event, client, page=1)
+            await kashf_help_command(event, client, page=1, is_callback=False)
 
     @client.on(events.CallbackQuery(pattern=b"^kashf_"))
     async def help_callback_listener(event):
         try:
-            page = int(event.data.decode().split("_")[1])
-            await kashf_help_command(event, client, page=page)
+            data_str = event.data.decode()
+            if data_str.startswith("kashf_"):
+                page = int(data_str.split("_")[1])
+                await kashf_help_command(event, client, page=page, is_callback=True)
             await event.answer()
-        except:
-            pass
+        except Exception as e:
+            print(f"Error in help callback: {e}")
