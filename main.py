@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from telethon import TelegramClient, events, types, functions, errors
 from database import db
 from admin_monitor import track_admin_activity, get_admin_report, get_detailed_session_report, get_specific_admin_report
+from help_system import setup_help_system
 
 
 # --- إعدادات البوت الملكي ---
@@ -395,7 +396,9 @@ async def main_handler(event):
         elif cmd == "تنزيل_مشرف":
             db.set_rank(str(event.chat_id), target_id, "عضو 👤")
             await event.reply(f"📉 تم تنزيل [{target_name}](tg://user?id={target_id}) إلى رتبة عضو.")
-
+# تفعيل نظام المساعدات
+setup_help_system(application)
+                 
 # --- بدء التشغيل النهائي ---
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
 client.loop.create_task(names_patrol_task()) 
