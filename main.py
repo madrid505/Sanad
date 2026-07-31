@@ -91,7 +91,7 @@ async def check_user_radar(user_id, current_name, current_username):
         else:
             db.sync_user_to_radar(uid_str, current_name, current_username)
 
-# --- [3] دورية الرادار (فحص الـ 10,000 عضو كل 5 دقائق) ---
+# --- [3] دورية الرادار (فحص الـ 10,000 عضو كل ساعة) ---
 async def names_patrol_task():
     while True:
         total_checked = 0
@@ -105,8 +105,10 @@ async def names_patrol_task():
                     total_checked += 1
             except: continue
         
-                try: await client.send_message(OWNER_ID, f"🔄 **دورية الرادار:** تم فحص `{total_checked}` عضو بنجاح.")
-        except: pass
+        try: 
+            await client.send_message(OWNER_ID, f"🔄 **دورية الرادار:** تم فحص `{total_checked}` عضو بنجاح.")
+        except: 
+            pass
         await asyncio.sleep(3600) # ساعة كاملة لراحة البوت وزيادة سرعة الاستجابة
 
 # --- [4] جرد المغادرين (فوري عند التشغيل + كل 24 ساعة) ---
