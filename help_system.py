@@ -155,7 +155,7 @@ def setup_help_system(client, allowed_groups):
         text = event.raw_text or ""
         if text.startswith("تمت مساعدته") or text == "بحث":
             await handle_help_messages(event, client)
-        elif text == "كشف_المساعدات" or text == "/kashf":
+        elif text == "كشف المساعدات" or text == "/kashf":
             await kashf_help_command(event, client, page=1)
 
     @client.on(events.CallbackQuery(pattern=b"^kashf_"))
