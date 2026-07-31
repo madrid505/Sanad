@@ -1,7 +1,6 @@
 import sqlite3
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, MessageHandler, CommandHandler, CallbackQueryHandler, filters
+from telethon import events, Button
 
 # --- 1. إعداد قاعدة البيانات الخاصة بالمساعدات ---
 def init_db():
@@ -23,104 +22,89 @@ def init_db():
 
 init_db()
 
-# --- 2. معالجة رسائل التسجيل (تمت مساعدته) ---
-async def track_help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-    if not message or not message.reply_to_message:
+# --- دالة مساعدة لجلب اسم المستخدم بشكل آمن ---
+async def get_user_display_name(client, user_id):
+    try:
+        user = await client.get_entity(user_id)
+        return f"{user.first_name or ''} {user.last_name or ''}".strip() or "مستخدم"
+    except:
+        return "مستخدم"
+
+# --- 2 & 3. معالجة رسائل التسجيل (تمت مساعدته) والبحث بالرد بكلمة "بحث" ---
+async def handle_help_messages(event, client):
+    if not event.is_reply:
         return
 
-    text = message.text or message.caption or ""
-    if not text.startswith("تمت مساعدته"):
+    text = (event.raw_text or "").strip()
+    reply_msg = await event.get_reply_message()
+    if not reply_msg or not reply_msg.sender_id:
         return
 
-    # استخراج التفاصيل المكتوبة بعد الكلمة
-    help_details = text.replace("تمت مساعدته", "").strip()
-    if not help_details:
-        help_details = "مساعدة عامة"
+    # حالة التسجيل (تمت مساعدته)
+    if text.startswith("تمت مساعدته"):
+        help_details = text.replace("تمت مساعدته", "").strip()
+        if not help_details:
+            help_details = "مساعدة عامة"
 
-    # المستفيد (صاحب الرسالة الأصلية التي تم الرد عليها)
-    target_user = message.reply_to_message.from_user
-    beneficiary_id = str(target_user.id)
-    beneficiary_name = target_user.first_name or "مستخدم"
+        target_user_id = reply_msg.sender_id
+        beneficiary_name = await get_user_display_name(client, target_user_id)
+        
+        provider_user = await event.get_sender()
+        provider_id = str(provider_user.id)
+        provider_name = f"{provider_user.first_name or ''} {provider_user.last_name or ''}".strip() or "مشرف/عضو"
 
-    # المُقدِّم (الشخص الذي كتب الرد)
-    provider_user = message.from_user
-    provider_id = str(provider_user.id)
-    provider_name = provider_user.first_name or "مشرف/عضو"
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # الوقت والتاريخ الحالي
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # حفظ في قاعدة البيانات
+        conn = sqlite3.connect("help_system.db")
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO helps (beneficiary_id, beneficiary_name, provider_id, provider_name, help_details, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (str(target_user_id), beneficiary_name, provider_id, provider_name, help_details, current_time))
+        conn.commit()
+        conn.close()
 
-    # حفظ البيانات في قاعدة البيانات
-    conn = sqlite3.connect("help_system.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO helps (beneficiary_id, beneficiary_name, provider_id, provider_name, help_details, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (beneficiary_id, beneficiary_name, provider_id, provider_name, help_details, current_time))
-    conn.commit()
-    conn.close()
+        await event.reply(
+            f"✅ تم تسجيل المساعدة بنجاح.\n"
+            f"👤 المستفيد: {beneficiary_name}\n"
+            f"🤝 المُقدِّم: {provider_name}\n"
+            f"📝 التفاصيل: {help_details}\n"
+            f"⏱️ الوقت: {current_time}"
+        )
 
-    # الرد بتأكيد التسجيل
-    await message.reply_text(
-        f"✅ تم تسجيل المساعدة بنجاح.\n"
-        f"👤 المستفيد: {beneficiary_name}\n"
-        f"🤝 المُقدِّم: {provider_name}\n"
-        f"📝 التفاصيل: {help_details}\n"
-        f"⏱️ الوقت: {current_time}"
-    )
+    # حالة البحث بالرد بكلمة "بحث"
+    elif text == "بحث":
+        target_user_id = reply_msg.sender_id
+        beneficiary_name = await get_user_display_name(client, target_user_id)
 
-# --- 3. نظام البحث بالرد بكلمة "بحث" ---
-async def search_help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-    if not message or not message.reply_to_message:
-        return
+        conn = sqlite3.connect("help_system.db")
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT help_details, provider_name, timestamp 
+            FROM helps 
+            WHERE beneficiary_id = ?
+            ORDER BY id DESC
+        """, (str(target_user_id),))
+        rows = cursor.fetchall()
+        conn.close()
 
-    text = (message.text or "").strip()
-    if text != "بحث":
-        return
+        if not rows:
+            await event.reply(f"❌ العضو {beneficiary_name} لم يتلق أي مساعدات مسجلة حتى الآن.")
+            return
 
-    target_user = message.reply_to_message.from_user
-    beneficiary_id = str(target_user.id)
-    beneficiary_name = target_user.first_name or "مستخدم"
+        total_helps = len(rows)
+        response_text = f"🔍 **تقرير المساعدات للعضو: {beneficiary_name}**\n"
+        response_text += f"📊 إجمالي عدد مرات المساعدة: **{total_helps}** مرات\n\n"
+        response_text += "**التفاصيل:**\n"
 
-    conn = sqlite3.connect("help_system.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT help_details, provider_name, timestamp 
-        FROM helps 
-        WHERE beneficiary_id = ?
-        ORDER BY id DESC
-    """, (beneficiary_id,))
-    rows = cursor.fetchall()
-    conn.close()
+        for idx, (details, provider, tstamp) in enumerate(rows[:10], 1):
+            response_text += f"{idx}️⃣ {details} | المُقدِّم: {provider} | ⏱️ {tstamp}\n"
 
-    if not rows:
-        await message.reply_text(f"❌ العضو {beneficiary_name} لم يتلق أي مساعدات مسجلة حتى الآن.")
-        return
-
-    total_helps = len(rows)
-    response_text = f"🔍 **تقرير المساعدات للعضو: {beneficiary_name}**\n"
-    response_text += f"📊 إجمالي عدد مرات المساعدة: **{total_helps}** مرات\n\n"
-    response_text += "**التفاصيل:**\n"
-
-    for idx, (details, provider, tstamp) in enumerate(rows[:10], 1): # عرض آخر 10 كبداية
-        response_text += f"{idx}️⃣ {details} | المُقدِّم: {provider} | ⏱️ {tstamp}\n"
-
-    await message.reply_text(response_text, parse_mode="Markdown")
+        await event.reply(response_text)
 
 # --- 4. أمر كشف المساعدات العام مع تقسيم صفحات (Pagination) ---
-async def kashf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    page = 1
-    
-    if query:
-        await query.answer()
-        page = int(query.data.split("_")[1])
-        message = query.message
-    else:
-        message = update.message
-
+async def kashf_help_command(event, client, page=1):
     conn = sqlite3.connect("help_system.db")
     cursor = conn.cursor()
     cursor.execute("SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps ORDER BY id DESC")
@@ -129,10 +113,10 @@ async def kashf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not rows:
         msg = "📭 لا توجد أي مساعدات مسجلة في النظام حتى الآن."
-        if query:
-            await message.edit_text(msg)
+        if event.is_callback:
+            await event.edit(msg)
         else:
-            await message.reply_text(msg)
+            await event.reply(msg)
         return
 
     items_per_page = 5
@@ -147,30 +131,38 @@ async def kashf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for idx, (ben, prov, details, tstamp) in enumerate(current_rows, start_idx + 1):
         text += f"{idx}. المستفيد: **{ben}** | المُقدِّم: {prov}\n   📌 {details} | ⏱️ {tstamp}\n\n"
 
-    # أزرار التنقل بين الصفحات
-    keyboard = []
+    # أزرار التنقل (Telethon Buttons)
+    buttons = []
     nav_buttons = []
     if page > 1:
-        nav_buttons.append(InlineKeyboardButton("⬅️ السابق", callback_data=f"kashf_{page - 1}"))
-    nav_buttons.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="none"))
+        nav_buttons.append(Button.inline("⬅️ السابق", data=f"kashf_{page - 1}"))
+    nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="none"))
     if page < total_pages:
-        nav_buttons.append(InlineKeyboardButton("التالي ➡️", callback_data=f"kashf_{page + 1}"))
+        nav_buttons.append(Button.inline("التالي ➡️", data=f"kashf_{page + 1}"))
     
     if nav_buttons:
-        keyboard.append(nav_buttons)
-    reply_markup = InlineKeyboardMarkup(keyboard)
+        buttons.append(nav_buttons)
 
-    if query:
-        await message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    if event.is_callback:
+        await event.edit(text, buttons=buttons)
     else:
-        await message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        await event.reply(text, buttons=buttons)
 
-# --- 5. دالة التسجيل الأساسية لتصديرها للملف الرئيسي ---
-def setup_help_system(application):
-    # مراقبة رسائل الرد لتسجيل المساعدة أو البحث
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_help_handler))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search_help_handler))
-    
-    # أمر كشف المساعدات العام
-    application.add_handler(CommandHandler("kashf", kashf_command))
-    application.add_handler(CallbackQueryHandler(kashf_command, pattern="^kashf_"))
+# --- 5. دالة التسجيل الأساسية لربطها بالعميل الرئيسي ---
+def setup_help_system(client, allowed_groups):
+    @client.on(events.NewMessage(chats=allowed_groups))
+    async def help_messages_listener(event):
+        text = event.raw_text or ""
+        if text.startswith("تمت مساعدته") or text == "بحث":
+            await handle_help_messages(event, client)
+        elif text == "كشف_المساعدات" or text == "/kashf":
+            await kashf_help_command(event, client, page=1)
+
+    @client.on(events.CallbackQuery(pattern=b"^kashf_"))
+    async def help_callback_listener(event):
+        try:
+            page = int(event.data.decode().split("_")[1])
+            await kashf_help_command(event, client, page=page)
+            await event.answer()
+        except:
+            pass
