@@ -105,9 +105,9 @@ async def names_patrol_task():
                     total_checked += 1
             except: continue
         
-        try: await client.send_message(OWNER_ID, f"🔄 **دورية الرادار:** تم فحص `{total_checked}` عضو بنجاح.")
+                try: await client.send_message(OWNER_ID, f"🔄 **دورية الرادار:** تم فحص `{total_checked}` عضو بنجاح.")
         except: pass
-        await asyncio.sleep(900) # 5 دقائق
+        await asyncio.sleep(3600) # ساعة كاملة لراحة البوت وزيادة سرعة الاستجابة
 
 # --- [4] جرد المغادرين (فوري عند التشغيل + كل 24 ساعة) ---
 async def exits_scheduler_task():
