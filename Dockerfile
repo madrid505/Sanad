@@ -4,19 +4,19 @@ FROM python:3.10-slim
 # 2. إعداد مجلد العمل داخل الحاوية
 WORKDIR /app
 
-# 3. تثبيت المكتبات اللازمة للنظام لضمان استقرار التشفير
+# 3. تثبيت المكتبات اللازمة للنظام
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. بناء ملف المتطلبات برمجياً لضمان تثبيت Telethon فقط وتجنب أخطاء sqlite3
-RUN echo "telethon" > requirements.txt
+# 4. نسخ ملف المتطلبات الحقيقي أولاً وتثبيته لضمان توفر كافة المكتبات (مثل pytz و telethon)
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. إنشاء مجلد التخزين الدائم لقاعدة البيانات (الأرشيف المتراكم)
+# 5. إنشاء مجلد التخزين الدائم لقاعدة البيانات
 RUN mkdir -p /app/data
 
-# 6. نسخ جميع ملفات الكود (main.py و database.py)
+# 6. نسخ باقي ملفات الكود
 COPY . .
 
 # 7. أمر تشغيل البوت الإمبراطوري
