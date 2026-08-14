@@ -492,9 +492,11 @@ async def handle_help_messages(event, client):
 
         buttons = []
         resp = f"🗑️ **قائمة ملاحظات العضو ({beneficiary_name}) للحذف:**\nاختر الملاحظة المراد حذفها:\n\n"
-        for row_id, details, tstamp in rows[:8]:
+        
+        # استخدام enumerate لإنشاء ترقيم تسلسلي مرئي (1, 2, 3...)
+        for index, (row_id, details, tstamp) in enumerate(rows[:8], start=1):
             date_part, time_part = tstamp.split()
-            resp += f"🆔 **[رقم {row_id}]**\n"
+            resp += f"🆔 **[رقم {index}]**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
             resp += f"📝 **التفاصيل:** {details}\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -502,9 +504,11 @@ async def handle_help_messages(event, client):
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
             resp += f"⏱️ **الوقت:** **{time_part}**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
-            buttons.append([Button.inline(f"حذف رقم {row_id}", data=f"del_{row_id}")])
+            # يتم عرض الرقم التسلسلي في الزر، بينما يتم تمرير الـ row_id الحقيقي برمجياً في الـ data
+            buttons.append([Button.inline(f"حذف رقم {index}", data=f"del_{row_id}")])
 
         await event.respond(resp, buttons=buttons)
+
 
     # هـ) حالة تعديل ملاحظة معينة (للمشرفين فقط بالرد واختيار القائمة)
     elif text == "تعديل":
@@ -524,9 +528,11 @@ async def handle_help_messages(event, client):
 
         buttons = []
         resp = f"✏️ **قائمة ملاحظات العضو ({beneficiary_name}) للتعديل:**\nاختر الملاحظة المراد تعديلها:\n\n"
-        for row_id, details, tstamp in rows[:8]:
+        
+        # استخدام enumerate لإنشاء ترقيم تسلسلي مرئي (1, 2, 3...)
+        for index, (row_id, details, tstamp) in enumerate(rows[:8], start=1):
             date_part, time_part = tstamp.split()
-            resp += f"🆔 **[رقم {row_id}]**\n"
+            resp += f"🆔 **[رقم {index}]**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
             resp += f"📝 **التفاصيل:** {details}\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -534,9 +540,11 @@ async def handle_help_messages(event, client):
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
             resp += f"⏱️ **الوقت:** **{time_part}**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
-            buttons.append([Button.inline(f"تعديل رقم {row_id}", data=f"edit_{row_id}")])
+            # يتم عرض الرقم التسلسلي في الزر والنص، بينما يتم تمرير الـ row_id الحقيقي برمجياً في الـ data
+            buttons.append([Button.inline(f"تعديل رقم {index}", data=f"edit_{row_id}")])
 
         await event.reply(resp, buttons=buttons)
+
 
 # --- 4. أمر كشف المساعدات العام مع تقسيم صفحات (Pagination) ---
 async def kashf_help_command(event, client, page=1, is_callback=False):
