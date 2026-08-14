@@ -239,7 +239,7 @@ async def handle_help_messages(event, client):
         await event.reply(ben_msg)
         return
 
-    # 3. أمر الأرشيف (بالكتابة المباشرة: أرشيف @user أو أرشيف id)
+        # 3. أمر الأرشيف (بالكتابة المباشرة: أرشيف @user أو أرشيف id)
     if text.startswith("ارشيف ") and not event.is_reply:
         query_val = text.replace("ارشيف", "").strip()
         target_id = None
@@ -259,11 +259,31 @@ async def handle_help_messages(event, client):
             await event.reply(f"❌ لم يتم العثور على أي سجل أرشيف مطابق لـ: {query_val}")
             return
 
-        resp = f"🗂️ **الأرشيف الشامل لـ ({query_val}):** (الإجمالي: {len(rows)} ملاحظة)\n\n"
+        resp = f"🗂️ **الأرشيف الشامل لـ:**\n"
+        resp += f"👤 **{query_val}**\n"
+        resp += f"━━━━━━━━━━━━━━━━━━━\n"
+        resp += f"📊 **إجمالي السجلات:**\n"
+        resp += f"🔢 **{len(rows)} ملاحظة**\n"
+        resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
+        
         for idx, (ben, prov, details, tstamp) in enumerate(rows[:15], 1):
-            resp += f"{idx}️⃣ المستفيد: **{ben}** | المُقدِّم: {prov}\n   📌 {details} | ⏱️ {tstamp}\n\n"
+            date_part, time_part = tstamp.split()
+            resp += f"🔹 **الملاحظة رقم ({idx})**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"🎯 **المستفيد:** {ben}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"🤝 **المُقدِّم:** {prov}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"📝 **التفاصيل:** {details}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"📅 **التاريخ:** **{date_part}**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"⏱️ **الوقت:** **{time_part}**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
+
         await event.reply(resp)
         return
+
 
     # المعالجات التي تتطلب الرد (Reply)
     if not event.is_reply:
@@ -328,13 +348,30 @@ async def handle_help_messages(event, client):
             await event.reply(f"❌ العضو {beneficiary_name} لم يتلق أي مساعدات مسجلة اليوم.")
             return
 
-        response_text = f"🔍 **تقرير المساعدات اليومي للعضو: {beneficiary_name}**\n"
-        response_text += f"📊 إجمالي عدد مرات المساعدة: **{len(rows)}** مرات\n\n"
-        response_text += "**التفاصيل:**\n"
+        response_text = f"🔍 **تقرير المساعدات اليومي للعضو:**\n"
+        response_text += f"👤 **{beneficiary_name}**\n"
+        response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+        response_text += f"📊 **إجمالي عدد مرات المساعدة:**\n"
+        response_text += f"🔢 **{len(rows)} مرات**\n"
+        response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
+        response_text += f"📌 **التفاصيل:**\n"
+        response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+        
         for idx, (details, provider, tstamp) in enumerate(rows[:10], 1):
-            response_text += f"{idx}️⃣ {details} | المُقدِّم: {provider} | ⏱️ {tstamp}\n"
+            date_part, time_part = tstamp.split()
+            response_text += f"🔹 **الملاحظة رقم ({idx})**\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"📝 **المحتوى:** {details}\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"🤝 **المُقدِّم:** {provider}\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"📅 **التاريخ:** **{date_part}**\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"⏱️ **الوقت:** **{time_part}**\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
 
         await event.reply(response_text)
+
 
     # ج) حالة طلب الأرشيف بالرد (أرشيف)
     elif text == "ارشيف":
