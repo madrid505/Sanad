@@ -68,7 +68,7 @@ async def get_user_display_name(client, user_id):
     except:
         return "مستخدم"
 
-# --- الخلفية للتصفير اليومي والترحيل الساعة 11 صباحاً ---
+# --- الخلفية للتصفير اليومي والترحيل الساعة 11 صباحاً وإرسال التقارير التلقائية ---
 async def daily_archive_scheduler(client, allowed_groups):
     while True:
         try:
@@ -80,9 +80,33 @@ async def daily_archive_scheduler(client, allowed_groups):
             wait_seconds = (target - now).total_seconds()
             await asyncio.sleep(wait_seconds)
             
-            # تنفيذ الترحيل والتصفير اليومي
+            time_limit = (datetime.now(TIMEZONE) - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+            today_date = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
+
             conn = sqlite3.connect("help_system.db")
             cursor = conn.cursor()
+            
+            # جلب أكثر مقدم مساعدات
+            cursor.execute("""
+                SELECT provider_name, COUNT(*) as count 
+                FROM helps 
+                WHERE timestamp >= ? 
+                GROUP BY provider_id 
+                ORDER BY count DESC LIMIT 1
+            """, (time_limit,))
+            top_provider = cursor.fetchone()
+
+            # جلب أكثر مستفيد تلقى مساعدات
+            cursor.execute("""
+                SELECT beneficiary_name, COUNT(*) as count 
+                FROM helps 
+                WHERE timestamp >= ? 
+                GROUP BY beneficiary_id 
+                ORDER BY count DESC LIMIT 1
+            """, (time_limit,))
+            top_beneficiary = cursor.fetchone()
+
+            # تنفيذ الترحيل والتصفير اليومي
             cursor.execute("SELECT beneficiary_id, beneficiary_name, provider_id, provider_name, help_details, timestamp FROM helps")
             rows = cursor.fetchall()
             if rows:
@@ -99,10 +123,36 @@ async def daily_archive_scheduler(client, allowed_groups):
             conn.commit()
             conn.close()
 
-            # إرسال إشعار للمجموعات المسموحة بعملية الترحيل والتصفير اليومي
+            # بناء رسالة أكثر مقدم مساعدات
+            prov_msg = (
+                f"🏆 **أكثر عضو قام بتقديم المساعدات (آخر 24 ساعة)**\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"📅 **التاريخ:** {today_date}\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 **اسم العضو:** {top_provider[0] if top_provider else 'لا يوجد'}\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"🔢 **عدد المساعدات:** {top_provider[1] if top_provider else 0}\n"
+                f"━━━━━━━━━━━━━━━━━━━"
+            )
+
+            # بناء رسالة أكثر مستفيد تلقى مساعدات
+            ben_msg = (
+                f"🎯 **أكثر عضو تلقى مساعدات (آخر 24 ساعة)**\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"📅 **التاريخ:** {today_date}\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 **اسم العضو:** {top_beneficiary[0] if top_beneficiary else 'لا يوجد'}\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"🔢 **عدد المساعدات المتلقاة:** {top_beneficiary[1] if top_beneficiary else 0}\n"
+                f"━━━━━━━━━━━━━━━━━━━"
+            )
+
+            # إرسال إشعار للمجموعات المسموحة بعملية الترحيل والتصفير والتقارير
             for chat_id in allowed_groups:
                 try:
                     await client.send_message(chat_id, "🔄 **تم ترحيل السجل اليومي إلى الأرشيف وتصفير النظام بنجاح (الساعة 11:00 صباحاً).**")
+                    await client.send_message(chat_id, prov_msg)
+                    await client.send_message(chat_id, ben_msg)
                 except:
                     pass
         except Exception as e:
@@ -127,29 +177,64 @@ async def handle_help_messages(event, client):
         await event.reply("⚠️ **تم تصفير النظام والأرشيف بالكامل والبدء من الصفر بناءً على طلب المالك.**")
         return
 
-    # 2. إحصائيات آخر 24 ساعة
-    if text == "إحصائيات 24 ساعة":
+    # 2. أمر التوب (أكثر مقدم مساعدات وأكثر مستفيد خلال آخر 24 ساعة)
+    if text == "توب":
         time_limit = (datetime.now(TIMEZONE) - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        today_date = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
+        
         conn = sqlite3.connect("help_system.db")
         cursor = conn.cursor()
+        
+        # أكثر مقدم مساعدات
         cursor.execute("""
             SELECT provider_name, COUNT(*) as count 
             FROM helps 
             WHERE timestamp >= ? 
             GROUP BY provider_id 
-            ORDER BY count DESC
+            ORDER BY count DESC LIMIT 1
         """, (time_limit,))
-        rows = cursor.fetchall()
+        top_provider = cursor.fetchone()
+
+        # أكثر مستفيد تلقى مساعدات
+        cursor.execute("""
+            SELECT beneficiary_name, COUNT(*) as count 
+            FROM helps 
+            WHERE timestamp >= ? 
+            GROUP BY beneficiary_id 
+            ORDER BY count DESC LIMIT 1
+        """, (time_limit,))
+        top_beneficiary = cursor.fetchone()
+        
         conn.close()
 
-        if not rows:
+        if not top_provider and not top_beneficiary:
             await event.reply("📊 لا توجد مساعدات مسجلة خلال الـ 24 ساعة الماضية.")
             return
 
-        resp = "📊 **إحصائيات تقديم المساعدات خلال آخر 24 ساعة:**\n\n"
-        for idx, (p_name, cnt) in enumerate(rows, 1):
-            resp += f"{idx}️⃣ **{p_name}**: قدم **{cnt}** مساعدة\n"
-        await event.reply(resp)
+        prov_msg = (
+            f"🏆 **أكثر عضو قام بتقديم المساعدات (آخر 24 ساعة)**\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"📅 **التاريخ:** {today_date}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 **اسم العضو:** {top_provider[0] if top_provider else 'لا يوجد'}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🔢 **عدد المساعدات:** {top_provider[1] if top_provider else 0}\n"
+            f"━━━━━━━━━━━━━━━━━━━"
+        )
+
+        ben_msg = (
+            f"🎯 **أكثر عضو تلقى مساعدات (آخر 24 ساعة)**\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"📅 **التاريخ:** {today_date}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 **اسم العضو:** {top_beneficiary[0] if top_beneficiary else 'لا يوجد'}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🔢 **عدد المساعدات المتلقاة:** {top_beneficiary[1] if top_beneficiary else 0}\n"
+            f"━━━━━━━━━━━━━━━━━━━"
+        )
+
+        await event.reply(prov_msg)
+        await event.reply(ben_msg)
         return
 
     # 3. أمر الأرشيف (بالكتابة المباشرة: أرشيف @user أو أرشيف id)
@@ -224,7 +309,6 @@ async def handle_help_messages(event, client):
             f"⏱️ **الوقت:** {current_time.split()[1]}"
         )
 
-
     # ب) حالة البحث السريع
     elif text == "بحث":
         conn = sqlite3.connect("help_system.db")
@@ -284,7 +368,6 @@ async def handle_help_messages(event, client):
             response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
 
         await event.reply(response_text)
-
 
     # د) حالة حذف ملاحظة معينة (للمشرفين فقط بالرد واختيار القائمة)
     elif text == "حذف":
@@ -387,7 +470,7 @@ def setup_help_system(client, allowed_groups):
     async def help_messages_listener(event):
         text = (event.raw_text or "").strip()
         if (text.startswith("تمت مساعدته") or text == "بحث" or text == "أرشيف" or 
-            text == "حذف" or text == "تعديل" or text == "تصفير" or text == "إحصائيات 24 ساعة" or 
+            text == "حذف" or text == "تعديل" or text == "تصفير" or text == "توب" or 
             text.startswith("أرشيف ")):
             await handle_help_messages(event, client)
         elif text == "كشف المساعدات" or text == "/kashf":
