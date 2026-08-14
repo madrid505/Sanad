@@ -470,7 +470,7 @@ async def handle_help_messages(event, client):
         await event.reply(response_text, buttons=buttons if buttons else None)
 
     # د) حالة حذف ملاحظة معينة (للمشرفين فقط بالرد واختيار القائمة)
-    elif text == "حذف ملاحظة":
+    elif text == "مسح":
         if not await is_admin(event):
             await event.reply("❌ هذا الأمر مخصص للمشرفين فقط.")
             return
