@@ -180,7 +180,7 @@ async def handle_help_messages(event, client):
         return
 
     # 2. أمر التوب (أكثر مقدم مساعدات وأكثر مستفيد خلال آخر 24 ساعة)
-    if text == "توب ون":
+    if text.lower() in ["top", "توب", "توب ون"]:
         time_limit = (datetime.now(TIMEZONE) - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
         today_date = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
         
@@ -239,7 +239,7 @@ async def handle_help_messages(event, client):
         await event.reply(ben_msg)
         return
 
-        # 3. أمر الأرشيف (بالكتابة المباشرة: أرشيف @user أو أرشيف id)
+    # 3. أمر الأرشيف (بالكتابة المباشرة: أرشيف @user أو أرشيف id)
     if text.startswith("ارشيف ") and not event.is_reply:
         query_val = text.replace("ارشيف", "").strip()
         target_id = None
@@ -259,14 +259,23 @@ async def handle_help_messages(event, client):
             await event.reply(f"❌ لم يتم العثور على أي سجل أرشيف مطابق لـ: {query_val}")
             return
 
+        items_per_page = 1
+        total_pages = len(rows)
+        page = 1
+
+        start_idx = (page - 1) * items_per_page
+        current_rows = rows[start_idx:start_idx + items_per_page]
+
         resp = f"🗂️ **الأرشيف الشامل لـ:**\n"
         resp += f"👤 **{query_val}**\n"
         resp += f"━━━━━━━━━━━━━━━━━━━\n"
         resp += f"📊 **إجمالي السجلات:**\n"
         resp += f"🔢 **{len(rows)} ملاحظة**\n"
+        resp += f"━━━━━━━━━━━━━━━━━━━\n"
+        resp += f"📄 **الصفحة {page} من {total_pages}**\n"
         resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
         
-        for idx, (ben, prov, details, tstamp) in enumerate(rows[:15], 1):
+        for idx, (ben, prov, details, tstamp) in enumerate(current_rows, start_idx + 1):
             date_part, time_part = tstamp.split()
             resp += f"🔹 **الملاحظة رقم ({idx})**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -281,9 +290,17 @@ async def handle_help_messages(event, client):
             resp += f"⏱️ **الوقت:** **{time_part}**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
 
-        await event.reply(resp)
-        return
+        buttons = []
+        nav_buttons = []
+        if total_pages > 1:
+            nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="none"))
+            nav_buttons.append(Button.inline("التالي ➡️", data=f"arc_page_{query_val}_{page + 1}"))
+        
+        if nav_buttons:
+            buttons.append(nav_buttons)
 
+        await event.reply(resp, buttons=buttons if buttons else None)
+        return
 
     # المعالجات التي تتطلب الرد (Reply)
     if not event.is_reply:
@@ -296,9 +313,14 @@ async def handle_help_messages(event, client):
     target_user_id = str(reply_msg.sender_id)
     beneficiary_name = await get_user_display_name(reply_msg)
 
-    # أ) حالة التسجيل (تمت مساعدته)
-    if text.startswith("تمت مساعدته"):
-        help_details = text.replace("تمت مساعدته", "").strip() or "مساعدة عامة"
+    # أ) حالة التسجيل (تمت مساعدته / تم مساعدته / تم المساعده)
+    if text.startswith("تمت مساعدته") or text.startswith("تم مساعدته") or text.startswith("تم المساعده"):
+        if text.startswith("تمت مساعدته"):
+            help_details = text.replace("تمت مساعدته", "").strip() or "مساعدة عامة"
+        elif text.startswith("تم مساعدته"):
+            help_details = text.replace("تم مساعدته", "").strip() or "مساعدة عامة"
+        else:
+            help_details = text.replace("تم المساعده", "").strip() or "مساعدة عامة"
         
         provider_user = await event.get_sender()
         if not provider_user:
@@ -348,16 +370,25 @@ async def handle_help_messages(event, client):
             await event.reply(f"❌ العضو {beneficiary_name} لم يتلق أي مساعدات مسجلة اليوم.")
             return
 
+        items_per_page = 1
+        total_pages = len(rows)
+        page = 1
+
+        start_idx = (page - 1) * items_per_page
+        current_rows = rows[start_idx:start_idx + items_per_page]
+
         response_text = f"🔍 **تقرير المساعدات اليومي للعضو:**\n"
         response_text += f"👤 **{beneficiary_name}**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n"
         response_text += f"📊 **إجمالي عدد مرات المساعدة:**\n"
         response_text += f"🔢 **{len(rows)} مرات**\n"
+        response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+        response_text += f"📄 **الصفحة {page} من {total_pages}**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
         response_text += f"📌 **التفاصيل:**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n"
         
-        for idx, (details, provider, tstamp) in enumerate(rows[:10], 1):
+        for idx, (details, provider, tstamp) in enumerate(current_rows, start_idx + 1):
             date_part, time_part = tstamp.split()
             response_text += f"🔹 **الملاحظة رقم ({idx})**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -370,7 +401,16 @@ async def handle_help_messages(event, client):
             response_text += f"⏱️ **الوقت:** **{time_part}**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
 
-        await event.reply(response_text)
+        buttons = []
+        nav_buttons = []
+        if total_pages > 1:
+            nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="none"))
+            nav_buttons.append(Button.inline("التالي ➡️", data=f"srch_page_{target_user_id}_{page + 1}"))
+        
+        if nav_buttons:
+            buttons.append(nav_buttons)
+
+        await event.reply(response_text, buttons=buttons if buttons else None)
 
 
     # ج) حالة طلب الأرشيف بالرد (أرشيف)
@@ -389,30 +429,56 @@ async def handle_help_messages(event, client):
             await event.reply(f"📭 العضو {beneficiary_name} ليس لديه أي سجلات سابقة في الأرشيف.")
             return
 
-        response_text = f"🗂️ **الأرشيف الشامل للعضو: {beneficiary_name}**\n"
+        items_per_page = 1
+        total_pages = len(rows)
+        page = 1
+
+        start_idx = (page - 1) * items_per_page
+        current_rows = rows[start_idx:start_idx + items_per_page]
+
+        response_text = f"🗂️ **الأرشيف الشامل للعضو:**\n"
+        response_text += f"👤 **{beneficiary_name}**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-        response_text += f"📊 **إجمالي السجلات التاريخية:** {len(rows)} ملاحظة\n"
+        response_text += f"📊 **إجمالي السجلات التاريخية:**\n"
+        response_text += f"🔢 **{len(rows)} ملاحظة**\n"
+        response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+        response_text += f"📄 **الصفحة {page} من {total_pages}**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
         
-        for idx, (details, provider, tstamp) in enumerate(rows, 1):
+        for idx, (details, provider, tstamp) in enumerate(current_rows, start_idx + 1):
+            date_part, time_part = tstamp.split()
             response_text += f"🔹 **الملاحظة رقم ({idx}):**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
             response_text += f"📝 **التفاصيل:** {details}\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
             response_text += f"🤝 **المُقدِّم:** {provider}\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-            response_text += f"📅 **التاريخ:** {tstamp.split()[0]}\n"
+            response_text += f"📅 **التاريخ:** **{date_part}**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-            response_text += f"⏱️ **الوقت:** {tstamp.split()[1]}\n"
+            response_text += f"⏱️ **الوقت:** **{time_part}**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
 
-        await event.reply(response_text)
+        buttons = []
+        nav_buttons = []
+        if total_pages > 1:
+            nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="none"))
+            nav_buttons.append(Button.inline("التالي ➡️", data=f"arch_page_{target_user_id}_{page + 1}"))
+        
+        if nav_buttons:
+            buttons.append(nav_buttons)
+
+        await event.reply(response_text, buttons=buttons if buttons else None)
 
     # د) حالة حذف ملاحظة معينة (للمشرفين فقط بالرد واختيار القائمة)
-    elif text == "حذف":
+    elif text == "حذف ملاحظة":
         if not await is_admin(event):
             await event.reply("❌ هذا الأمر مخصص للمشرفين فقط.")
             return
+
+        try:
+            await event.delete()
+        except:
+            pass
 
         conn = sqlite3.connect("help_system.db")
         cursor = conn.cursor()
@@ -421,16 +487,24 @@ async def handle_help_messages(event, client):
         conn.close()
 
         if not rows:
-            await event.reply(f"❌ لا توجد ملاحظات نشطة لهذا العضو لحذفها.")
+            await event.respond(f"❌ لا توجد ملاحظات نشطة لهذا العضو لحذفها.")
             return
 
         buttons = []
         resp = f"🗑️ **قائمة ملاحظات العضو ({beneficiary_name}) للحذف:**\nاختر الملاحظة المراد حذفها:\n\n"
         for row_id, details, tstamp in rows[:8]:
-            resp += f"🆔 `[رقم {row_id}]` - {details} ({tstamp})\n"
+            date_part, time_part = tstamp.split()
+            resp += f"🆔 **[رقم {row_id}]**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"📝 **التفاصيل:** {details}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"📅 **التاريخ:** **{date_part}**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"⏱️ **الوقت:** **{time_part}**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
             buttons.append([Button.inline(f"حذف رقم {row_id}", data=f"del_{row_id}")])
 
-        await event.reply(resp, buttons=buttons)
+        await event.respond(resp, buttons=buttons)
 
     # هـ) حالة تعديل ملاحظة معينة (للمشرفين فقط بالرد واختيار القائمة)
     elif text == "تعديل":
@@ -451,7 +525,15 @@ async def handle_help_messages(event, client):
         buttons = []
         resp = f"✏️ **قائمة ملاحظات العضو ({beneficiary_name}) للتعديل:**\nاختر الملاحظة المراد تعديلها:\n\n"
         for row_id, details, tstamp in rows[:8]:
-            resp += f"🆔 `[رقم {row_id}]` - {details} ({tstamp})\n"
+            date_part, time_part = tstamp.split()
+            resp += f"🆔 **[رقم {row_id}]**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"📝 **التفاصيل:** {details}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"📅 **التاريخ:** **{date_part}**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"⏱️ **الوقت:** **{time_part}**\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
             buttons.append([Button.inline(f"تعديل رقم {row_id}", data=f"edit_{row_id}")])
 
         await event.reply(resp, buttons=buttons)
@@ -508,9 +590,10 @@ def setup_help_system(client, allowed_groups):
     @client.on(events.NewMessage(chats=allowed_groups))
     async def help_messages_listener(event):
         text = (event.raw_text or "").strip()
-        if (text.startswith("تمت مساعدته") or text == "بحث" or text == "أرشيف" or 
-            text == "حذف" or text == "تعديل" or text == "تصفير" or text == "توب" or 
-            text.startswith("أرشيف ")):
+        if (text.startswith("تمت مساعدته") or text.startswith("تم مساعدته") or text.startswith("تم المساعده") or 
+            text == "بحث" or text == "ارشيف" or text.startswith("ارشيف ") or 
+            text == "حذف ملاحظة" or text == "تعديل" or text == "تصفير" or 
+            text.lower() in ["top", "توب", "توب ون"]):
             await handle_help_messages(event, client)
         elif text == "كشف المساعدات" or text == "/kashf":
             await kashf_help_command(event, client, page=1, is_callback=False)
@@ -524,6 +607,196 @@ def setup_help_system(client, allowed_groups):
             if data_str.startswith("kashf_"):
                 page = int(data_str.split("_")[1])
                 await kashf_help_command(event, client, page=page, is_callback=True)
+                await event.answer()
+
+            # معالجة صفحات البحث بالرد (ملاحظة واحدة لكل صفحة)
+            elif data_str.startswith("srch_page_"):
+                parts = data_str.split("_")
+                target_user_id = parts[2]
+                page = int(parts[3])
+
+                conn = sqlite3.connect("help_system.db")
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT help_details, provider_name, timestamp 
+                    FROM helps 
+                    WHERE beneficiary_id = ?
+                    ORDER BY id DESC
+                """, (target_user_id,))
+                rows = cursor.fetchall()
+                conn.close()
+
+                items_per_page = 1
+                total_pages = len(rows)
+                page = max(1, min(page, total_pages))
+
+                start_idx = (page - 1) * items_per_page
+                current_rows = rows[start_idx:start_idx + items_per_page]
+
+                try:
+                    user_entity = await client.get_entity(int(target_user_id))
+                    beneficiary_name = f"{user_entity.first_name or ''} {user_entity.last_name or ''}".strip() or "مستخدم"
+                except:
+                    beneficiary_name = "مستخدم"
+
+                response_text = f"🔍 **تقرير المساعدات اليومي للعضو:**\n"
+                response_text += f"👤 **{beneficiary_name}**\n"
+                response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                response_text += f"📊 **إجمالي عدد مرات المساعدة:**\n"
+                response_text += f"🔢 **{len(rows)} مرات**\n"
+                response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                response_text += f"📄 **الصفحة {page} من {total_pages}**\n"
+                response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
+                response_text += f"📌 **التفاصيل:**\n"
+                response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                
+                for idx, (details, provider, tstamp) in enumerate(current_rows, start_idx + 1):
+                    date_part, time_part = tstamp.split()
+                    response_text += f"🔹 **الملاحظة رقم ({idx})**\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"📝 **المحتوى:** {details}\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"🤝 **المُقدِّم:** {provider}\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"📅 **التاريخ:** **{date_part}**\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"⏱️ **الوقت:** **{time_part}**\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
+
+                buttons = []
+                nav_buttons = []
+                if page > 1:
+                    nav_buttons.append(Button.inline("⬅️ السابق", data=f"srch_page_{target_user_id}_{page - 1}"))
+                nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="none"))
+                if page < total_pages:
+                    nav_buttons.append(Button.inline("التالي ➡️", data=f"srch_page_{target_user_id}_{page + 1}"))
+                if nav_buttons:
+                    buttons.append(nav_buttons)
+
+                await event.edit(response_text, buttons=buttons)
+                await event.answer()
+
+            # معالجة صفحات الأرشيف بالرد (ملاحظة واحدة لكل صفحة)
+            elif data_str.startswith("arch_page_"):
+                parts = data_str.split("_")
+                target_user_id = parts[2]
+                page = int(parts[3])
+
+                conn = sqlite3.connect("help_system.db")
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT help_details, provider_name, timestamp FROM helps WHERE beneficiary_id = ?
+                    UNION ALL
+                    SELECT help_details, provider_name, timestamp FROM archive WHERE beneficiary_id = ?
+                """, (target_user_id, target_user_id))
+                rows = cursor.fetchall()
+                conn.close()
+
+                items_per_page = 1
+                total_pages = len(rows)
+                page = max(1, min(page, total_pages))
+
+                start_idx = (page - 1) * items_per_page
+                current_rows = rows[start_idx:start_idx + items_per_page]
+
+                try:
+                    user_entity = await client.get_entity(int(target_user_id))
+                    beneficiary_name = f"{user_entity.first_name or ''} {user_entity.last_name or ''}".strip() or "مستخدم"
+                except:
+                    beneficiary_name = "مستخدم"
+
+                response_text = f"🗂️ **الأرشيف الشامل للعضو:**\n"
+                response_text += f"👤 **{beneficiary_name}**\n"
+                response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                response_text += f"📊 **إجمالي السجلات التاريخية:**\n"
+                response_text += f"🔢 **{len(rows)} ملاحظة**\n"
+                response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                response_text += f"📄 **الصفحة {page} من {total_pages}**\n"
+                response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
+                
+                for idx, (details, provider, tstamp) in enumerate(current_rows, start_idx + 1):
+                    date_part, time_part = tstamp.split()
+                    response_text += f"🔹 **الملاحظة رقم ({idx}):**\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"📝 **التفاصيل:** {details}\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"🤝 **المُقدِّم:** {provider}\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"📅 **التاريخ:** **{date_part}**\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"⏱️ **الوقت:** **{time_part}**\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
+
+                buttons = []
+                nav_buttons = []
+                if page > 1:
+                    nav_buttons.append(Button.inline("⬅️ السابق", data=f"arch_page_{target_user_id}_{page - 1}"))
+                nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="none"))
+                if page < total_pages:
+                    nav_buttons.append(Button.inline("التالي ➡️", data=f"arch_page_{target_user_id}_{page + 1}"))
+                if nav_buttons:
+                    buttons.append(nav_buttons)
+
+                await event.edit(response_text, buttons=buttons)
+                await event.answer()
+
+            # معالجة صفحات الأرشيف المباشر (ملاحظة واحدة لكل صفحة)
+            elif data_str.startswith("arc_page_"):
+                parts = data_str.split("_")
+                query_val = parts[2]
+                page = int(parts[3])
+
+                conn = sqlite3.connect("help_system.db")
+                cursor = conn.cursor()
+                if query_val.isdigit():
+                    cursor.execute("SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_id = ? UNION ALL SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_id = ?", (query_val, query_val))
+                else:
+                    cursor.execute("SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_name LIKE ? UNION ALL SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_name LIKE ?", (f"%{query_val}%", f"%{query_val}%"))
+                rows = cursor.fetchall()
+                conn.close()
+
+                items_per_page = 1
+                total_pages = len(rows)
+                page = max(1, min(page, total_pages))
+
+                start_idx = (page - 1) * items_per_page
+                current_rows = rows[start_idx:start_idx + items_per_page]
+
+                resp = f"🗂️ **الأرشيف الشامل لـ:**\n"
+                resp += f"👤 **{query_val}**\n"
+                resp += f"━━━━━━━━━━━━━━━━━━━\n"
+                resp += f"📊 **إجمالي السجلات:**\n"
+                resp += f"🔢 **{len(rows)} ملاحظة**\n"
+                resp += f"━━━━━━━━━━━━━━━━━━━\n"
+                resp += f"📄 **الصفحة {page} من {total_pages}**\n"
+                resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
+                
+                for idx, (ben, prov, details, tstamp) in enumerate(current_rows, start_idx + 1):
+                    date_part, time_part = tstamp.split()
+                    resp += f"🔹 **الملاحظة رقم ({idx})**\n"
+                    resp += f"━━━━━━━━━━━━━━━━━━━\n"
+                    resp += f"🎯 **المستفيد:** {ben}\n"
+                    resp += f"━━━━━━━━━━━━━━━━━━━\n"
+                    resp += f"🤝 **المُقدِّم:** {prov}\n"
+                    resp += f"━━━━━━━━━━━━━━━━━━━\n"
+                    resp += f"📝 **التفاصيل:** {details}\n"
+                    resp += f"━━━━━━━━━━━━━━━━━━━\n"
+                    resp += f"📅 **التاريخ:** **{date_part}**\n"
+                    resp += f"━━━━━━━━━━━━━━━━━━━\n"
+                    resp += f"⏱️ **الوقت:** **{time_part}**\n"
+                    resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
+
+                buttons = []
+                nav_buttons = []
+                if page > 1:
+                    nav_buttons.append(Button.inline("⬅️ السابق", data=f"arc_page_{query_val}_{page - 1}"))
+                nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="none"))
+                if page < total_pages:
+                    nav_buttons.append(Button.inline("التالي ➡️", data=f"arc_page_{query_val}_{page + 1}"))
+                if nav_buttons:
+                    buttons.append(nav_buttons)
+
+                await event.edit(resp, buttons=buttons)
                 await event.answer()
             
             # معالجة حذف ملاحظة معينة
