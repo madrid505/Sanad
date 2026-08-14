@@ -493,7 +493,6 @@ async def handle_help_messages(event, client):
         buttons = []
         resp = f"🗑️ **قائمة ملاحظات العضو ({beneficiary_name}) للحذف:**\nاختر الملاحظة المراد حذفها:\n\n"
         
-        # استخدام enumerate لإنشاء ترقيم تسلسلي مرئي (1, 2, 3...)
         for index, (row_id, details, tstamp) in enumerate(rows[:8], start=1):
             date_part, time_part = tstamp.split()
             resp += f"🆔 **[رقم {index}]**\n"
@@ -504,8 +503,8 @@ async def handle_help_messages(event, client):
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
             resp += f"⏱️ **الوقت:** **{time_part}**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
-            # يتم عرض الرقم التسلسلي في الزر، بينما يتم تمرير الـ row_id الحقيقي برمجياً في الـ data
-            buttons.append([Button.inline(f"حذف رقم {index}", data=f"del_{row_id}")])
+            # تمرير الـ row_id مع الرقم التسلسلي معا في الـ data (مثال: del_15_4)
+            buttons.append([Button.inline(f"حذف رقم {index}", data=f"del_{row_id}_{index}")])
 
         await event.respond(resp, buttons=buttons)
 
@@ -529,7 +528,6 @@ async def handle_help_messages(event, client):
         buttons = []
         resp = f"✏️ **قائمة ملاحظات العضو ({beneficiary_name}) للتعديل:**\nاختر الملاحظة المراد تعديلها:\n\n"
         
-        # استخدام enumerate لإنشاء ترقيم تسلسلي مرئي (1, 2, 3...)
         for index, (row_id, details, tstamp) in enumerate(rows[:8], start=1):
             date_part, time_part = tstamp.split()
             resp += f"🆔 **[رقم {index}]**\n"
@@ -540,8 +538,8 @@ async def handle_help_messages(event, client):
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
             resp += f"⏱️ **الوقت:** **{time_part}**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
-            # يتم عرض الرقم التسلسلي في الزر والنص، بينما يتم تمرير الـ row_id الحقيقي برمجياً في الـ data
-            buttons.append([Button.inline(f"تعديل رقم {index}", data=f"edit_{row_id}")])
+            # تمرير الـ row_id مع الرقم التسلسلي معا في الـ data (مثال: edit_15_4)
+            buttons.append([Button.inline(f"تعديل رقم {index}", data=f"edit_{row_id}_{index}")])
 
         await event.reply(resp, buttons=buttons)
 
@@ -807,21 +805,27 @@ def setup_help_system(client, allowed_groups):
                 await event.edit(resp, buttons=buttons)
                 await event.answer()
             
-            # معالجة حذف ملاحظة معينة
+            # معالجة حذف ملاحظة معينة (قراءة الـ row_id والـ index التسلسلي بدقة)
             elif data_str.startswith("del_"):
-                row_id = int(data_str.split("_")[1])
+                parts = data_str.split("_")
+                row_id = int(parts[1])
+                display_index = parts[2] if len(parts) > 2 else row_id
+
                 conn = sqlite3.connect("help_system.db")
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM helps WHERE id = ?", (row_id,))
                 conn.commit()
                 conn.close()
-                await event.edit(f"✅ تم حذف الملاحظة (رقم {row_id}) بنجاح.")
+                await event.edit(f"✅ تم حذف الملاحظة (رقم {display_index}) بنجاح.")
                 await event.answer("تم الحذف")
 
-            # معالجة تعديل ملاحظة معينة
+            # معالجة تعديل ملاحظة معينة (قراءة الـ row_id والـ index التسلسلي بدقة)
             elif data_str.startswith("edit_"):
-                row_id = int(data_str.split("_")[1])
-                await event.edit(f"✍️ يرجى إرسال النص الجديد للملاحظة برقم `{row_id}` بالرد على رسالتي هذه أو إرساله مباشرة.")
+                parts = data_str.split("_")
+                row_id = int(parts[1])
+                display_index = parts[2] if len(parts) > 2 else row_id
+
+                await event.edit(f"✍️ يرجى إرسال النص الجديد للملاحظة برقم `{display_index}` بالرد على رسالتي هذه أو إرساله مباشرة.")
                 
                 # التقاط التعديل الجديد من المشرف
                 async with client.conversation(event.chat_id, timeout=60) as conv:
@@ -834,7 +838,7 @@ def setup_help_system(client, allowed_groups):
                     conn.commit()
                     conn.close()
                     
-                    await event.respond(f"✅ تم تحديث الملاحظة (رقم {row_id}) بنجاح إلى: {new_details}")
+                    await event.respond(f"✅ تم تحديث الملاحظة (رقم {display_index}) بنجاح إلى: {new_details}")
                 await event.answer("تم التعديل")
         except Exception as e:
             print(f"Error in help callback: {e}")
