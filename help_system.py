@@ -592,7 +592,7 @@ def setup_help_system(client, allowed_groups):
         text = (event.raw_text or "").strip()
         if (text.startswith("تمت مساعدته") or text.startswith("تم مساعدته") or text.startswith("تم المساعده") or 
             text == "بحث" or text == "ارشيف" or text.startswith("ارشيف ") or 
-            text == "حذف ملاحظة" or text == "تعديل" or text == "تصفير" or 
+            text == "مسح" or text == "تعديل" or text == "تصفير" or 
             text.lower() in ["top", "توب", "توب ون"]):
             await handle_help_messages(event, client)
         elif text == "كشف المساعدات" or text == "/kashf":
