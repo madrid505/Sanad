@@ -60,13 +60,15 @@ async def is_owner(event):
     except:
         return False
 
-# --- دالة مساعدة لجلب اسم المستخدم بشكل آمن ---
-async def get_user_display_name(client, user_id):
+# --- دالة مساعدة لجلب اسم المستفيد الحقيقي من رسالة الرد بشكل مضمون ---
+async def get_user_display_name(reply_msg):
     try:
-        user = await client.get_entity(user_id)
-        return f"{user.first_name or ''} {user.last_name or ''}".strip() or "مستخدم"
+        sender = await reply_msg.get_sender()
+        if sender:
+            return f"{sender.first_name or ''} {sender.last_name or ''}".strip() or "مستخدم"
     except:
-        return "مستخدم"
+        pass
+    return "مستخدم"
 
 # --- الخلفية للتصفير اليومي والترحيل الساعة 11 صباحاً وإرسال التقارير التلقائية ---
 async def daily_archive_scheduler(client, allowed_groups):
@@ -178,7 +180,7 @@ async def handle_help_messages(event, client):
         return
 
     # 2. أمر التوب (أكثر مقدم مساعدات وأكثر مستفيد خلال آخر 24 ساعة)
-    if text == "توب":
+    if text == "توب ون":
         time_limit = (datetime.now(TIMEZONE) - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
         today_date = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
         
@@ -272,7 +274,7 @@ async def handle_help_messages(event, client):
         return
 
     target_user_id = str(reply_msg.sender_id)
-    beneficiary_name = await get_user_display_name(client, target_user_id)
+    beneficiary_name = await get_user_display_name(reply_msg)
 
     # أ) حالة التسجيل (تمت مساعدته)
     if text.startswith("تمت مساعدته"):
