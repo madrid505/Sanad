@@ -4,15 +4,23 @@ import time
 
 class RadarDB:
     def __init__(self):
-        # مسار التخزين المتوافق مع Northflank Volume
+        # مسار التخزين الدائم المتوافق مع Northflank Volume
         self.base_dir = "/app/data"
         if not os.path.exists(self.base_dir):
             os.makedirs(self.base_dir, exist_ok=True)
 
-        self.db_path = os.path.join(self.base_dir, "monopoly_radar_core.db")
+        # اسم ملف قاعدة بيانات مستقل وخاص حصرياً بهذا البوت لضمان عدم تداخله مع البوت الثاني
+        self.db_path = os.path.join(self.base_dir, "radar_core.db")
+        
+        # فتح الاتصال بقاعدة البيانات مع إجبار التفعيل المستقر وعدم الغلق
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.cursor = self.conn.cursor() 
+        
+        # أمر إلزامي لضمان الكتابة والحفظ الفوري والداخلي على ملف التخزين الدائم
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        
         self.create_tables()
+
 
     def create_tables(self):
         # 1. إنشاء الجداول الأساسية
