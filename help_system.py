@@ -267,11 +267,24 @@ async def handle_help_messages(event, client):
             return
 
         response_text = f"🗂️ **الأرشيف الشامل للعضو: {beneficiary_name}**\n"
-        response_text += f"📊 إجمالي السجلات التاريخية: **{len(rows)}** ملاحظة\n\n"
-        for idx, (details, provider, tstamp) in enumerate(rows[:15], 1):
-            response_text += f"{idx}️⃣ {details} | المُقدِّم: {provider} | ⏱️ {tstamp}\n"
+        response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+        response_text += f"📊 **إجمالي السجلات التاريخية:** {len(rows)} ملاحظة\n"
+        response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        for idx, (details, provider, tstamp) in enumerate(rows, 1):
+            response_text += f"🔹 **الملاحظة رقم ({idx}):**\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"📝 **التفاصيل:** {details}\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"🤝 **المُقدِّم:** {provider}\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"📅 **التاريخ:** {tstamp.split()[0]}\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"⏱️ **الوقت:** {tstamp.split()[1]}\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
 
         await event.reply(response_text)
+
 
     # د) حالة حذف ملاحظة معينة (للمشرفين فقط بالرد واختيار القائمة)
     elif text == "حذف":
