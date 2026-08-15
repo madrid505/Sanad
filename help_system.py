@@ -60,7 +60,7 @@ async def is_owner(event):
     except:
         return False
 
-# --- دالة مساعدة لجلب اسم المستفيد الحقيقي من رسالة الرد بشكل مضمون ---
+# --- دالة مساعدة لجلب اسم المستخدم الحقيقي من رسالة الرد بشكل مضمون ---
 async def get_user_display_name(reply_msg):
     try:
         sender = await reply_msg.get_sender()
@@ -242,16 +242,21 @@ async def handle_help_messages(event, client):
     # 3. أمر الأرشيف (بالكتابة المباشرة: أرشيف @user أو أرشيف id)
     if text.startswith("ارشيف ") and not event.is_reply:
         query_val = text.replace("ارشيف", "").strip()
-        target_id = None
-        target_name = query_val
 
-        # محاولة البحث بالمعرف أو اليوزر
         conn = sqlite3.connect("help_system.db")
         cursor = conn.cursor()
         if query_val.isdigit():
-            cursor.execute("SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_id = ? UNION ALL SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_id = ?", (query_val, query_val))
+            cursor.execute("""
+                SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_id = ? OR provider_id = ?
+                UNION ALL 
+                SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_id = ? OR provider_id = ?
+            """, (query_val, query_val, query_val, query_val))
         else:
-            cursor.execute("SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_name LIKE ? UNION ALL SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_name LIKE ?", (f"%{query_val}%", f"%{query_val}%"))
+            cursor.execute("""
+                SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_name LIKE ? OR provider_name LIKE ?
+                UNION ALL 
+                SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_name LIKE ? OR provider_name LIKE ?
+            """, (f"%{query_val}%", f"%{query_val}%", f"%{query_val}%", f"%{query_val}%"))
         rows = cursor.fetchall()
         conn.close()
 
@@ -311,7 +316,7 @@ async def handle_help_messages(event, client):
         return
 
     target_user_id = str(reply_msg.sender_id)
-    beneficiary_name = await get_user_display_name(reply_msg)
+    target_user_name = await get_user_display_name(reply_msg)
 
     # أ) حالة التسجيل (تمت مساعدته / تم مساعدته / تم المساعده)
     if text.startswith("تمت مساعدته") or text.startswith("تم مساعدته") or text.startswith("تم المساعده"):
@@ -335,14 +340,14 @@ async def handle_help_messages(event, client):
         cursor.execute("""
             INSERT INTO helps (beneficiary_id, beneficiary_name, provider_id, provider_name, help_details, timestamp)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (target_user_id, beneficiary_name, provider_id, provider_name, help_details, current_time))
+        """, (target_user_id, target_user_name, provider_id, provider_name, help_details, current_time))
         conn.commit()
         conn.close()
 
         await event.reply(
             f"✅ **تم تسجيل المساعدة بنجاح**\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 **المستفيد:** {beneficiary_name}\n"
+            f"👤 **المستفيد:** {target_user_name}\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"🤝 **المُقدِّم:** {provider_name}\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
@@ -358,16 +363,16 @@ async def handle_help_messages(event, client):
         conn = sqlite3.connect("help_system.db")
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT help_details, provider_name, timestamp 
+            SELECT help_details, provider_name, timestamp, beneficiary_name 
             FROM helps 
-            WHERE beneficiary_id = ?
+            WHERE beneficiary_id = ? OR provider_id = ?
             ORDER BY id DESC
-        """, (target_user_id,))
+        """, (target_user_id, target_user_id))
         rows = cursor.fetchall()
         conn.close()
 
         if not rows:
-            await event.reply(f"❌ العضو {beneficiary_name} لم يتلق أي مساعدات مسجلة اليوم.")
+            await event.reply(f"❌ العضو {target_user_name} ليس لديه أي مساعدات مسجلة اليوم (كمستفيد أو مُقدّم).")
             return
 
         items_per_page = 1
@@ -378,23 +383,23 @@ async def handle_help_messages(event, client):
         current_rows = rows[start_idx:start_idx + items_per_page]
 
         response_text = f"🔍 **تقرير المساعدات اليومي للعضو:**\n"
-        response_text += f"👤 **{beneficiary_name}**\n"
+        response_text += f"👤 **{target_user_name}**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-        response_text += f"📊 **إجمالي عدد مرات المساعدة:**\n"
-        response_text += f"🔢 **{len(rows)} مرات**\n"
+        response_text += f"📊 **إجمالي السجلات المرتبطة:**\n"
+        response_text += f"🔢 **{len(rows)} سجلات**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n"
         response_text += f"📄 **الصفحة {page} من {total_pages}**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
-        response_text += f"📌 **التفاصيل:**\n"
-        response_text += f"━━━━━━━━━━━━━━━━━━━\n"
         
-        for idx, (details, provider, tstamp) in enumerate(current_rows, start_idx + 1):
+        for idx, (details, provider, tstamp, ben_name) in enumerate(current_rows, start_idx + 1):
             date_part, time_part = tstamp.split()
             response_text += f"🔹 **الملاحظة رقم ({idx})**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-            response_text += f"📝 **المحتوى:** {details}\n"
+            response_text += f"🎯 **المستفيد:** {ben_name}\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
             response_text += f"🤝 **المُقدِّم:** {provider}\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"📝 **التفاصيل:** {details}\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
             response_text += f"📅 **التاريخ:** **{date_part}**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -412,21 +417,20 @@ async def handle_help_messages(event, client):
 
         await event.reply(response_text, buttons=buttons if buttons else None)
 
-
     # ج) حالة طلب الأرشيف بالرد (أرشيف)
     elif text == "ارشيف":
         conn = sqlite3.connect("help_system.db")
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT help_details, provider_name, timestamp FROM helps WHERE beneficiary_id = ?
+            SELECT help_details, provider_name, timestamp, beneficiary_name FROM helps WHERE beneficiary_id = ? OR provider_id = ?
             UNION ALL
-            SELECT help_details, provider_name, timestamp FROM archive WHERE beneficiary_id = ?
-        """, (target_user_id, target_user_id))
+            SELECT help_details, provider_name, timestamp, beneficiary_name FROM archive WHERE beneficiary_id = ? OR provider_id = ?
+        """, (target_user_id, target_user_id, target_user_id, target_user_id))
         rows = cursor.fetchall()
         conn.close()
 
         if not rows:
-            await event.reply(f"📭 العضو {beneficiary_name} ليس لديه أي سجلات سابقة في الأرشيف.")
+            await event.reply(f"📭 العضو {target_user_name} ليس لديه أي سجلات تاريخية في الأرشيف.")
             return
 
         items_per_page = 1
@@ -437,7 +441,7 @@ async def handle_help_messages(event, client):
         current_rows = rows[start_idx:start_idx + items_per_page]
 
         response_text = f"🗂️ **الأرشيف الشامل للعضو:**\n"
-        response_text += f"👤 **{beneficiary_name}**\n"
+        response_text += f"👤 **{target_user_name}**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n"
         response_text += f"📊 **إجمالي السجلات التاريخية:**\n"
         response_text += f"🔢 **{len(rows)} ملاحظة**\n"
@@ -445,13 +449,15 @@ async def handle_help_messages(event, client):
         response_text += f"📄 **الصفحة {page} من {total_pages}**\n"
         response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
         
-        for idx, (details, provider, tstamp) in enumerate(current_rows, start_idx + 1):
+        for idx, (details, provider, tstamp, ben_name) in enumerate(current_rows, start_idx + 1):
             date_part, time_part = tstamp.split()
             response_text += f"🔹 **الملاحظة رقم ({idx}):**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-            response_text += f"📝 **التفاصيل:** {details}\n"
+            response_text += f"🎯 **المستفيد:** {ben_name}\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
             response_text += f"🤝 **المُقدِّم:** {provider}\n"
+            response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+            response_text += f"📝 **التفاصيل:** {details}\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
             response_text += f"📅 **التاريخ:** **{date_part}**\n"
             response_text += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -469,7 +475,7 @@ async def handle_help_messages(event, client):
 
         await event.reply(response_text, buttons=buttons if buttons else None)
 
-    # د) حالة حذف ملاحظة معينة (للمشرفين فقط بالرد واختيار القائمة)
+    # د) حالة حذف ملاحظة معينة (تشمل المستفيد أو مقدم المساعدة)
     elif text == "مسح":
         if not await is_admin(event):
             await event.reply("❌ هذا الأمر مخصص للمشرفين فقط.")
@@ -482,34 +488,40 @@ async def handle_help_messages(event, client):
 
         conn = sqlite3.connect("help_system.db")
         cursor = conn.cursor()
-        cursor.execute("SELECT id, help_details, timestamp FROM helps WHERE beneficiary_id = ? ORDER BY id DESC", (target_user_id,))
+        # البحث عما إذا كان الشخص مستفيداً أو مقدم مساعدة
+        cursor.execute("""
+            SELECT id, help_details, timestamp, beneficiary_name, provider_name 
+            FROM helps 
+            WHERE beneficiary_id = ? OR provider_id = ? 
+            ORDER BY id DESC
+        """, (target_user_id, target_user_id))
         rows = cursor.fetchall()
         conn.close()
 
         if not rows:
-            await event.respond(f"❌ لا توجد ملاحظات نشطة لهذا العضو لحذفها.")
+            await event.respond(f"❌ لا توجد ملاحظات نشطة مرتبطة بالعضو ({target_user_name}) لحذفها.")
             return
 
         buttons = []
-        resp = f"🗑️ **قائمة ملاحظات العضو ({beneficiary_name}) للحذف:**\nاختر الملاحظة المراد حذفها:\n\n"
+        resp = f"🗑️ **قائمة الملاحظات المرتبطة بـ ({target_user_name}) للحذف:**\nاختر الملاحظة المراد حذفها:\n\n"
         
-        for index, (row_id, details, tstamp) in enumerate(rows[:8], start=1):
+        for index, (row_id, details, tstamp, ben_name, prov_name) in enumerate(rows[:8], start=1):
             date_part, time_part = tstamp.split()
             resp += f"🆔 **[رقم {index}]**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"🎯 **المستفيد:** {ben_name}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"🤝 **المُقدِّم:** {prov_name}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
             resp += f"📝 **التفاصيل:** {details}\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
-            resp += f"📅 **التاريخ:** **{date_part}**\n"
-            resp += f"━━━━━━━━━━━━━━━━━━━\n"
-            resp += f"⏱️ **الوقت:** **{time_part}**\n"
+            resp += f"📅 **التاريخ:** **{date_part}** | ⏱️ **الوقت:** **{time_part}**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
-            # تمرير الـ row_id مع الرقم التسلسلي معا في الـ data (مثال: del_15_4)
             buttons.append([Button.inline(f"حذف رقم {index}", data=f"del_{row_id}_{index}")])
 
         await event.respond(resp, buttons=buttons)
 
-
-    # هـ) حالة تعديل ملاحظة معينة (للمشرفين فقط بالرد واختيار القائمة)
+    # هـ) حالة تعديل ملاحظة معينة (تشمل المستفيد أو مقدم المساعدة)
     elif text == "تعديل":
         if not await is_admin(event):
             await event.reply("❌ هذا الأمر مخصص للمشرفين فقط.")
@@ -517,32 +529,37 @@ async def handle_help_messages(event, client):
 
         conn = sqlite3.connect("help_system.db")
         cursor = conn.cursor()
-        cursor.execute("SELECT id, help_details, timestamp FROM helps WHERE beneficiary_id = ? ORDER BY id DESC", (target_user_id,))
+        cursor.execute("""
+            SELECT id, help_details, timestamp, beneficiary_name, provider_name 
+            FROM helps 
+            WHERE beneficiary_id = ? OR provider_id = ? 
+            ORDER BY id DESC
+        """, (target_user_id, target_user_id))
         rows = cursor.fetchall()
         conn.close()
 
         if not rows:
-            await event.reply(f"❌ لا توجد ملاحظات نشطة لهذا العضو لتعديلها.")
+            await event.reply(f"❌ لا توجد ملاحظات نشطة مرتبطة بالعضو ({target_user_name}) لتعديلها.")
             return
 
         buttons = []
-        resp = f"✏️ **قائمة ملاحظات العضو ({beneficiary_name}) للتعديل:**\nاختر الملاحظة المراد تعديلها:\n\n"
+        resp = f"✏️ **قائمة الملاحظات المرتبطة بـ ({target_user_name}) للتعديل:**\nاختر الملاحظة المراد تعديلها:\n\n"
         
-        for index, (row_id, details, tstamp) in enumerate(rows[:8], start=1):
+        for index, (row_id, details, tstamp, ben_name, prov_name) in enumerate(rows[:8], start=1):
             date_part, time_part = tstamp.split()
             resp += f"🆔 **[رقم {index}]**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"🎯 **المستفيد:** {ben_name}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
+            resp += f"🤝 **المُقدِّم:** {prov_name}\n"
+            resp += f"━━━━━━━━━━━━━━━━━━━\n"
             resp += f"📝 **التفاصيل:** {details}\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n"
-            resp += f"📅 **التاريخ:** **{date_part}**\n"
-            resp += f"━━━━━━━━━━━━━━━━━━━\n"
-            resp += f"⏱️ **الوقت:** **{time_part}**\n"
+            resp += f"📅 **التاريخ:** **{date_part}** | ⏱️ **الوقت:** **{time_part}**\n"
             resp += f"━━━━━━━━━━━━━━━━━━━\n\n"
-            # تمرير الـ row_id مع الرقم التسلسلي معا في الـ data (مثال: edit_15_4)
             buttons.append([Button.inline(f"تعديل رقم {index}", data=f"edit_{row_id}_{index}")])
 
-        await event.reply(resp, buttons=buttons)
-
+        await event.respond(resp, buttons=buttons)
 
 # --- 4. أمر كشف المساعدات العام مع تقسيم صفحات (Pagination) ---
 async def kashf_help_command(event, client, page=1, is_callback=False):
@@ -590,7 +607,6 @@ async def kashf_help_command(event, client, page=1, is_callback=False):
 
 # --- 5. دالة التسجيل الأساسية وإدارة الأزرار والمهام الخلفية ---
 def setup_help_system(client, allowed_groups):
-    # تشغيل مهام الأرشيف والتصفير اليومي تلقائياً في الخلفية
     client.loop.create_task(daily_archive_scheduler(client, allowed_groups))
 
     @client.on(events.NewMessage(chats=allowed_groups))
@@ -609,13 +625,11 @@ def setup_help_system(client, allowed_groups):
         try:
             data_str = event.data.decode()
             
-            # معالجة صفحات الكشف العام
             if data_str.startswith("kashf_"):
                 page = int(data_str.split("_")[1])
                 await kashf_help_command(event, client, page=page, is_callback=True)
                 await event.answer()
 
-            # معالجة صفحات البحث بالرد (ملاحظة واحدة لكل صفحة)
             elif data_str.startswith("srch_page_"):
                 parts = data_str.split("_")
                 target_user_id = parts[2]
@@ -624,11 +638,11 @@ def setup_help_system(client, allowed_groups):
                 conn = sqlite3.connect("help_system.db")
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT help_details, provider_name, timestamp 
+                    SELECT help_details, provider_name, timestamp, beneficiary_name 
                     FROM helps 
-                    WHERE beneficiary_id = ?
+                    WHERE beneficiary_id = ? OR provider_id = ?
                     ORDER BY id DESC
-                """, (target_user_id,))
+                """, (target_user_id, target_user_id))
                 rows = cursor.fetchall()
                 conn.close()
 
@@ -641,28 +655,28 @@ def setup_help_system(client, allowed_groups):
 
                 try:
                     user_entity = await client.get_entity(int(target_user_id))
-                    beneficiary_name = f"{user_entity.first_name or ''} {user_entity.last_name or ''}".strip() or "مستخدم"
+                    target_user_name = f"{user_entity.first_name or ''} {user_entity.last_name or ''}".strip() or "مستخدم"
                 except:
-                    beneficiary_name = "مستخدم"
+                    target_user_name = "مستخدم"
 
                 response_text = f"🔍 **تقرير المساعدات اليومي للعضو:**\n"
-                response_text += f"👤 **{beneficiary_name}**\n"
+                response_text += f"👤 **{target_user_name}**\n"
                 response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-                response_text += f"📊 **إجمالي عدد مرات المساعدة:**\n"
-                response_text += f"🔢 **{len(rows)} مرات**\n"
+                response_text += f"📊 **إجمالي السجلات المرتبطة:**\n"
+                response_text += f"🔢 **{len(rows)} سجلات**\n"
                 response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-                response_text += f"📄 **الصفحة {page} من {total_pages}**\n"
+                response_text += f"📄 **الصفحة چه {page} من {total_pages}**\n"
                 response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
-                response_text += f"📌 **التفاصيل:**\n"
-                response_text += f"━━━━━━━━━━━━━━━━━━━\n"
                 
-                for idx, (details, provider, tstamp) in enumerate(current_rows, start_idx + 1):
+                for idx, (details, provider, tstamp, ben_name) in enumerate(current_rows, start_idx + 1):
                     date_part, time_part = tstamp.split()
                     response_text += f"🔹 **الملاحظة رقم ({idx})**\n"
                     response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-                    response_text += f"📝 **المحتوى:** {details}\n"
+                    response_text += f"🎯 **المستفيد:** {ben_name}\n"
                     response_text += f"━━━━━━━━━━━━━━━━━━━\n"
                     response_text += f"🤝 **المُقدِّم:** {provider}\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"📝 **التفاصيل:** {details}\n"
                     response_text += f"━━━━━━━━━━━━━━━━━━━\n"
                     response_text += f"📅 **التاريخ:** **{date_part}**\n"
                     response_text += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -682,7 +696,6 @@ def setup_help_system(client, allowed_groups):
                 await event.edit(response_text, buttons=buttons)
                 await event.answer()
 
-            # معالجة صفحات الأرشيف بالرد (ملاحظة واحدة لكل صفحة)
             elif data_str.startswith("arch_page_"):
                 parts = data_str.split("_")
                 target_user_id = parts[2]
@@ -691,10 +704,10 @@ def setup_help_system(client, allowed_groups):
                 conn = sqlite3.connect("help_system.db")
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT help_details, provider_name, timestamp FROM helps WHERE beneficiary_id = ?
+                    SELECT help_details, provider_name, timestamp, beneficiary_name FROM helps WHERE beneficiary_id = ? OR provider_id = ?
                     UNION ALL
-                    SELECT help_details, provider_name, timestamp FROM archive WHERE beneficiary_id = ?
-                """, (target_user_id, target_user_id))
+                    SELECT help_details, provider_name, timestamp, beneficiary_name FROM archive WHERE beneficiary_id = ? OR provider_id = ?
+                """, (target_user_id, target_user_id, target_user_id, target_user_id))
                 rows = cursor.fetchall()
                 conn.close()
 
@@ -707,12 +720,12 @@ def setup_help_system(client, allowed_groups):
 
                 try:
                     user_entity = await client.get_entity(int(target_user_id))
-                    beneficiary_name = f"{user_entity.first_name or ''} {user_entity.last_name or ''}".strip() or "مستخدم"
+                    target_user_name = f"{user_entity.first_name or ''} {user_entity.last_name or ''}".strip() or "مستخدم"
                 except:
-                    beneficiary_name = "مستخدم"
+                    target_user_name = "مستخدم"
 
                 response_text = f"🗂️ **الأرشيف الشامل للعضو:**\n"
-                response_text += f"👤 **{beneficiary_name}**\n"
+                response_text += f"👤 **{target_user_name}**\n"
                 response_text += f"━━━━━━━━━━━━━━━━━━━\n"
                 response_text += f"📊 **إجمالي السجلات التاريخية:**\n"
                 response_text += f"🔢 **{len(rows)} ملاحظة**\n"
@@ -720,13 +733,15 @@ def setup_help_system(client, allowed_groups):
                 response_text += f"📄 **الصفحة {page} من {total_pages}**\n"
                 response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
                 
-                for idx, (details, provider, tstamp) in enumerate(current_rows, start_idx + 1):
+                for idx, (details, provider, tstamp, ben_name) in enumerate(current_rows, start_idx + 1):
                     date_part, time_part = tstamp.split()
                     response_text += f"🔹 **الملاحظة رقم ({idx}):**\n"
                     response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-                    response_text += f"📝 **التفاصيل:** {details}\n"
+                    response_text += f"🎯 **المستفيد:** {ben_name}\n"
                     response_text += f"━━━━━━━━━━━━━━━━━━━\n"
                     response_text += f"🤝 **المُقدِّم:** {provider}\n"
+                    response_text += f"━━━━━━━━━━━━━━━━━━━\n"
+                    response_text += f"📝 **التفاصيل:** {details}\n"
                     response_text += f"━━━━━━━━━━━━━━━━━━━\n"
                     response_text += f"📅 **التاريخ:** **{date_part}**\n"
                     response_text += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -746,7 +761,6 @@ def setup_help_system(client, allowed_groups):
                 await event.edit(response_text, buttons=buttons)
                 await event.answer()
 
-            # معالجة صفحات الأرشيف المباشر (ملاحظة واحدة لكل صفحة)
             elif data_str.startswith("arc_page_"):
                 parts = data_str.split("_")
                 query_val = parts[2]
@@ -755,9 +769,17 @@ def setup_help_system(client, allowed_groups):
                 conn = sqlite3.connect("help_system.db")
                 cursor = conn.cursor()
                 if query_val.isdigit():
-                    cursor.execute("SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_id = ? UNION ALL SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_id = ?", (query_val, query_val))
+                    cursor.execute("""
+                        SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_id = ? OR provider_id = ?
+                        UNION ALL 
+                        SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_id = ? OR provider_id = ?
+                    """, (query_val, query_val, query_val, query_val))
                 else:
-                    cursor.execute("SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_name LIKE ? UNION ALL SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_name LIKE ?", (f"%{query_val}%", f"%{query_val}%"))
+                    cursor.execute("""
+                        SELECT beneficiary_name, provider_name, help_details, timestamp FROM helps WHERE beneficiary_name LIKE ? OR provider_name LIKE ?
+                        UNION ALL 
+                        SELECT beneficiary_name, provider_name, help_details, timestamp FROM archive WHERE beneficiary_name LIKE ? OR provider_name LIKE ?
+                    """, (f"%{query_val}%", f"%{query_val}%", f"%{query_val}%", f"%{query_val}%"))
                 rows = cursor.fetchall()
                 conn.close()
 
@@ -805,7 +827,6 @@ def setup_help_system(client, allowed_groups):
                 await event.edit(resp, buttons=buttons)
                 await event.answer()
             
-            # معالجة حذف ملاحظة معينة (قراءة الـ row_id والـ index التسلسلي بدقة)
             elif data_str.startswith("del_"):
                 parts = data_str.split("_")
                 row_id = int(parts[1])
@@ -819,7 +840,6 @@ def setup_help_system(client, allowed_groups):
                 await event.edit(f"✅ تم حذف الملاحظة (رقم {display_index}) بنجاح.")
                 await event.answer("تم الحذف")
 
-            # معالجة تعديل ملاحظة معينة (قراءة الـ row_id والـ index التسلسلي بدقة)
             elif data_str.startswith("edit_"):
                 parts = data_str.split("_")
                 row_id = int(parts[1])
@@ -827,7 +847,6 @@ def setup_help_system(client, allowed_groups):
 
                 await event.edit(f"✍️ يرجى إرسال النص الجديد للملاحظة برقم `{display_index}` بالرد على رسالتي هذه أو إرساله مباشرة.")
                 
-                # التقاط التعديل الجديد من المشرف
                 async with client.conversation(event.chat_id, timeout=60) as conv:
                     response = await conv.wait_event(events.NewMessage(chats=event.chat_id, from_users=event.sender_id))
                     new_details = response.raw_text.strip()
