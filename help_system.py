@@ -665,7 +665,7 @@ def setup_help_system(client, allowed_groups):
                 response_text += f"📊 **إجمالي السجلات المرتبطة:**\n"
                 response_text += f"🔢 **{len(rows)} سجلات**\n"
                 response_text += f"━━━━━━━━━━━━━━━━━━━\n"
-                response_text += f"📄 **الصفحة چه {page} من {total_pages}**\n"
+                response_text += f"📄 **الصفحة  {page} من {total_pages}**\n"
                 response_text += f"━━━━━━━━━━━━━━━━━━━\n\n"
                 
                 for idx, (details, provider, tstamp, ben_name) in enumerate(current_rows, start_idx + 1):
