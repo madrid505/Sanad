@@ -1,14 +1,7 @@
 import asyncio
 import json
 import os
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from telethon import Button, events
 
 # تحميل بيانات الأسئلة
 DATA_FILE = "games_data.json"
@@ -26,22 +19,21 @@ active_games = {}  # chat_id: {"question_index": 0, "winner_found": False}
 user_scores = {}  # chat_id: {user_id: {"name": name, "score": count}}
 
 
-async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  chat_id = update.effective_chat.id
-  text = update.message.text.strip()
+def setup_game_handlers(client):
 
-  # أمر بدء اللعبة
-  if text == "غباش":
+  @client.on(events.NewMessage(pattern=r"^غباش$"))
+  async def start_game(event):
+    chat_id = event.chat_id
+
+    # التحقق من أن المجموعات مسموحة إذا كنت تستخدم قائمة تصفية
     games = load_games()
     if not games:
-      await update.message.reply_text("❌ عذراً، لا توجد أسئلة مخزنة حالياً.")
+      await event.reply("❌ عذراً، لا توجد أسئلة مخزنة حالياً في ملف games_data.json")
       return
 
-    # تهيئة أو تقدم اللعبة
     if chat_id not in active_games:
       active_games[chat_id] = {"question_index": 0, "winner_found": False}
     else:
-      # الانتقال للسؤال التالي بشكل دائري أو إيقاف عند نهايتها
       current_idx = active_games[chat_id]["question_index"]
       if current_idx >= len(games):
         active_games[chat_id]["question_index"] = 0
@@ -55,176 +47,134 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔥 **لقد بدأ تحدي الغباش** 🔥\n\n"
         "🧩 **كل ما هو عليك ان تضغط على الصورة ذات الغباش، وتجمع الاحرف مع بعضها لتظهر لنا الكلمة الصحيحة** 🧩"
     )
-    await context.bot.send_message(
-        chat_id=chat_id, text=start_msg_text, parse_mode="Markdown"
-    )
+    await client.send_message(chat_id, start_msg_text, parse_mode="md")
 
-    # 2. إرسال صورة الغباش مع زر دفتر النتائج
-    keyboard = [[InlineKeyboardMarkup([[InlineKeyboardButton("📊 دفتر النتائج", callback_data="show_scoreboard")]])]]
-    # إرسال الصورة مع الـ Spoiler
-    sent_msg = await context.bot.send_photo(
-        chat_id=chat_id,
-        photo=q_data["spoiler_file_id"],
-        has_spoiler=True,
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("📊 دفتر النتائج", callback_data="show_scoreboard")]]
-        ),
+    # 2. إرسال صورة الغباش (ملاحظة: Telethon يدعم خاصية الـ spoiler عبر التنسيق أو بارامترات الوسائط المتقدمة)
+    buttons = [[Button.inline("📊 دفتر النتائج", data="show_scoreboard".encode())]]
+
+    # إرسال الصورة مع زر النتائج
+    sent_msg = await client.send_file(
+        chat_id,
+        file=q_data["spoiler_file_id"],
+        buttons=buttons,
+        # في حال دعم إصدار Telethon خاصية الـ spoiler للوسائط المباشرة
+        attributes=None,
     )
 
     # 3. تشغيل مهمة التذكير التشجعي كل 5 ثوانٍ
     asyncio.create_task(
-        encouragement_loop(context, chat_id, sent_msg.message_id)
+        encouragement_loop(client, chat_id, sent_msg.id)
     )
 
+  async def encouragement_loop(client, chat_id, message_id):
+    elapsed = 0
+    while elapsed < 30:
+      await asyncio.sleep(5)
+      elapsed += 5
 
-async def encouragement_loop(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int):
-  """رسالة تشجيعية كل 5 ثوانٍ إذا لم يتم حل اللغز"""
-  elapsed = 0
-  while elapsed < 30:  # مدة الجولة مثلاً 30 ثانية كحد أقصى
-    await asyncio.sleep(5)
-    elapsed += 5
+      if chat_id in active_games and active_games[chat_id]["winner_found"]:
+        break
 
-    # التحقق مما إذا تم العثور على الفائز
-    if chat_id in active_games and active_games[chat_id]["winner_found"]:
-      break
-
-    encouraging_text = (
-        f"⏳ **مضى {elapsed} ثواني على صورة الغباش ولم يتم حل اللغز!** ⏳\n\n"
-        "⚡ **اين انتم يا عشاق التحدي؟! استيقظوا واكشفوا الكلمة!** ⚡"
-    )
-    try:
-      await context.bot.send_message(
-          chat_id=chat_id, text=encouraging_text, parse_mode="Markdown"
+      encouraging_text = (
+          f"⏳ **مضى {elapsed} ثواني على صورة الغباش ولم يتم حل اللغز!** ⏳\n\n"
+          "⚡ **اين انتم يا عشاق التحدي؟! استيقظوا واكشفوا الكلمة!** ⚡"
       )
-    except Exception:
-      break
+      try:
+        await client.send_message(chat_id, encouraging_text, parse_mode="md")
+      except Exception:
+        break
 
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  chat_id = update.effective_chat.id
-  if chat_id not in active_games:
-    return
-
-  if active_games[chat_id]["winner_found"]:
-    return
-
-  user_text = update.message.text.strip()
-  games = load_games()
-  current_idx = active_games[chat_id]["question_index"]
-  q_data = games[current_idx]
-
-  # التحقق من الإجابة الصحيحة
-  if user_text == q_data["correct_answer"]:
-    active_games[chat_id]["winner_found"] = True
-    user = update.effective_user
-    user_id = user.id
-    user_name = user.first_name
-
-    # تحديث النقاط التراكمية
-    if chat_id not in user_scores:
-      user_scores[chat_id] = {}
-    if user_id not in user_scores[chat_id]:
-      user_scores[chat_id][user_id] = {"name": user_name, "score": 0}
-
-    user_scores[chat_id][user_id]["score"] += 1
-    current_score = user_scores[chat_id][user_id]["score"]
-
-    # إرسال صورة الجواب الصحيح بالرد على تعليق الفائز
-    keyboard = [[InlineKeyboardButton("📊 دفتر النتائج", callback_data="show_scoreboard")]]
-    await update.message.reply_photo(
-        photo=q_data["answer_file_id"],
-        caption=(
-            f"🎉 **مبروووووك يا بطل** 🎉\n\n"
-            f"✅ **جوابك صحيح ١٠٠٪** ✅\n\n"
-            f"🎯 **استمر في التحدي**"
-        ),
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
-
-    # التحقق من تحقيق 5 انتصارات
-    if current_score >= 5:
-      congrats_msg = (
-          f"🏆 **مبروووووك يا اسطورة الغباش [{user_name}](tg://user?id={user_id})** 🏆\n\n"
-          f"🌟 **لقد حققت خمس انتصارات وتغلبت على الجميع!** 🌟"
-      )
-      await context.bot.send_message(
-          chat_id=chat_id, text=congrats_msg, parse_mode="Markdown"
-      )
-      # تصفير النقاط بعد الفوز بالبطولة أو تركها حسب رغبتك (هنا نصفرها ليبدأ تحدٍ جديد)
-      user_scores[chat_id][user_id]["score"] = 0
-
-    # التقدم للسؤال التالي تلقائياً
-    active_games[chat_id]["question_index"] += 1
-
-
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  query = update.callback_query
-  await query.answer()
-
-  if query.data == "show_scoreboard":
-    chat_id = update.effective_chat.id
-    if chat_id not in user_scores or not user_scores[chat_id]:
-      await query.message.reply_text(
-          "📊 **دفتر النتائج فارغ حتى الآن، كن أول الفائزين!**",
-          parse_mode="Markdown",
-      )
+  @client.on(events.NewMessage(incoming=True))
+  async def handle_message(event):
+    if not event.is_group:
       return
 
-    # ترتيب الأعضاء تنازلياً حسب النقاط
-    sorted_users = sorted(
-        user_scores[chat_id].values(), key=lambda x: x["score"], reverse=True
-    )
+    chat_id = event.chat_id
+    if chat_id not in active_games:
+      return
 
-    score_text = "📊 **--- دفتر النتائج والمراتب ---** 📊\n\n"
-    for idx, data in enumerate(sorted_users[:10], start=1):
-      score_text += (
-          f"🏅 **{idx}. {data['name']}** ⟵ **{data['score']}** انتصارات\n"
+    if active_games[chat_id]["winner_found"]:
+      return
+
+    user_text = event.raw_text.strip()
+    games = load_games()
+    current_idx = active_games[chat_id]["question_index"]
+    q_data = games[current_idx]
+
+    if user_text == q_data["correct_answer"]:
+      active_games[chat_id]["winner_found"] = True
+      user = await event.get_sender()
+      user_id = user.id
+      user_name = user.first_name or "المتحدي"
+
+      if chat_id not in user_scores:
+        user_scores[chat_id] = {}
+      if user_id not in user_scores[chat_id]:
+        user_scores[chat_id][user_id] = {"name": user_name, "score": 0}
+
+      user_scores[chat_id][user_id]["score"] += 1
+      current_score = user_scores[chat_id][user_id]["score"]
+
+      # إرسال صورة الجواب الصحيح بالرد على رسالة الفائز
+      buttons = [
+          [Button.inline("📊 دفتر النتائج", data="show_scoreboard".encode())]
+      ]
+      await event.reply(
+          file=q_data["answer_file_id"],
+          message=(
+              f"🎉 **مبروووووك يا بطل** 🎉\n\n"
+              f"✅ **جوابك صحيح ١٠٠٪** ✅\n\n"
+              f"🎯 **استمر في التحدي**"
+          ),
+          parse_mode="md",
+          buttons=buttons,
       )
 
-    keyboard = [
-        [
-            InlineKeyboardButton("◀️ السابق", callback_data="prev_score"),
-            InlineKeyboardButton("التالي ▶️", callback_data="next_score"),
-        ],
-        [InlineKeyboardButton("❌ إغلاق", callback_data="close_score")],
-    ]
+      # التحقق من 5 انتصارات
+      if current_score >= 5:
+        congrats_msg = (
+            f"🏆 **مبروووووك يا اسطورة الغباش [{user_name}](tg://user?id={user_id})** 🏆\n\n"
+            f"🌟 **لقد حققت خمس انتصارات وتغلبت على الجميع!** 🌟"
+        )
+        await client.send_message(chat_id, congrats_msg, parse_mode="md")
+        user_scores[chat_id][user_id]["score"] = 0
 
-    await query.message.reply_text(
-        score_text,
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+      active_games[chat_id]["question_index"] += 1
 
-  elif query.data == "close_score":
-    await query.message.delete()
-  elif query.data in ["prev_score", "next_score"]:
-    await query.answer("هذه الصفحة الحالية للنتائج", show_alert=True)
+  @client.on(events.CallbackQuery)
+  async def callback_handler(event):
+    data = event.data.decode("utf-8")
+    chat_id = event.chat_id
 
+    if data == "show_scoreboard":
+      if chat_id not in user_scores or not user_scores[chat_id]:
+        await event.answer(
+            "دفتر النتائج فارغ حتى الآن، كن أول الفائزين!", alert=True
+        )
+        return
 
-def main():
-  # ضع توكن البوت الخاص بك هنا
-  TOKEN = "YOUR_BOT_TOKEN_HERE"
+      sorted_users = sorted(
+          user_scores[chat_id].values(), key=lambda x: x["score"], reverse=True
+      )
 
-  app = ApplicationBuilder().token(TOKEN).build()
+      score_text = "📊 **--- دفتر النتائج والمراتب ---** 📊\n\n"
+      for idx, item in enumerate(sorted_users[:10], start=1):
+        score_text += (
+            f"🏅 **{idx}. {item['name']}** ⟵ **{item['score']}** انتصارات\n"
+        )
 
-  # المعالجات
-  app.add_handler(
-      CommandHandler("start", start_game)
-  )  # أو يستجيب للكلمة كمفتاح نصي
-  app.add_handler(
-      MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-  )
-  app.add_handler(
-      MessageHandler(filters.Regex("^غباش$"), start_game)
-  )
-  app.add_handler(
-      CallbackQueryHandler(button_handler)
-  )  # ملاحظة: استيراد CallbackQueryHandler متوفر في telegram.ext
+      buttons = [
+          [
+              Button.inline("◀️ السابق", data="prev_score".encode()),
+              Button.inline("التالي ▶️", data="next_score".encode()),
+          ],
+          [Button.inline("❌ إغلاق", data="close_score".encode())],
+      ]
 
-  print("Bot is running...")
-  app.run_polling()
+      await event.respond(score_text, parse_mode="md", buttons=buttons)
+      await event.answer()
 
-
-if __name__ == "__main__":
-  main()
+    elif data == "close_score":
+      await event.delete()
+    elif data in ["prev_score", "next_score"]:
+      await event.answer("هذه الصفحة الحالية للنتائج", alert=True)
