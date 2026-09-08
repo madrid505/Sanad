@@ -323,6 +323,7 @@ async def get_private_file_id(event):
             print(f"❌ خطأ أثناء استخراج معرف الصورة في الخاص: {e}")
 
 
+
             
 
 
