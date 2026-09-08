@@ -1,8 +1,7 @@
 import asyncio
-import os
 from telethon import Button, events
 
-# بيانات الأسئلة مضمنة مباشرة داخل الكود لتجنب مشاكل المسارات تماماً
+# بيانات الأسئلة مضمنة مباشرة داخل الكود
 GAMES_LIST = [
     {
         "id": 1,
@@ -196,7 +195,6 @@ GAMES_LIST = [
     },
 ]
 
-# متغيرات تتبع حالة المسابقة لكل مجموعة
 active_games = {}
 user_scores = {}
 
@@ -222,7 +220,6 @@ def setup_game_handlers(client):
     q_data = games[active_games[chat_id]["question_index"]]
     active_games[chat_id]["winner_found"] = False
 
-    # 1. رسالة البدء
     start_msg_text = (
         "👑 **يا اساطير شعب مونوبولي العظيم** 👑\n\n"
         "🔥 **لقد بدأ تحدي الغباش** 🔥\n\n"
@@ -231,7 +228,6 @@ def setup_game_handlers(client):
     )
     await client.send_message(chat_id, start_msg_text, parse_mode="md")
 
-    # 2. إرسال صورة الغباش مع تفعيل خاصية السبويلر الرسمية
     buttons = [[Button.inline("📊 دفتر النتائج", data="show_scoreboard".encode())]]
 
     try:
@@ -242,11 +238,14 @@ def setup_game_handlers(client):
           spoiler=True,
       )
     except Exception as e:
-      print(f"❌ [لعبة الغباش] خطأ في إرسال صورة الغباش: {e}")
+      # طباعة الخطأ الفعلي والكامل في السجل (Logs) لمتابعة أي مشكلة برمجية
+      print(
+          f"❌ [خطأ تقني في لعبة الغباش - إرسال صورة الغباش]: التفاصيل التقنية:"
+          f" {e}"
+      )
       await event.reply("❌ حدث خطأ أثناء إرسال الصورة.")
       return
 
-    # 3. تشغيل مهمة التذكير التشجعي كل 5 ثوانٍ
     asyncio.create_task(encouragement_loop(client, chat_id, sent_msg.id))
 
   async def encouragement_loop(client, chat_id, message_id):
@@ -315,7 +314,10 @@ def setup_game_handlers(client):
             buttons=buttons,
         )
       except Exception as e:
-        print(f"❌ [لعبة الغباش] خطأ في إرسال صورة الجواب: {e}")
+        print(
+            f"❌ [خطأ تقني في لعبة الغباش - إرسال صورة الجواب]: التفاصيل التقنية:"
+            f" {e}"
+        )
 
       if current_score >= 5:
         congrats_msg = (
