@@ -1,5 +1,4 @@
-from telethon import events
-from telethon.tl.types import InputPhoto
+from telethon import events, utils
 
 
 def setup_extractor_handlers(client, owner_id):
@@ -9,15 +8,13 @@ def setup_extractor_handlers(client, owner_id):
     if event.is_private and event.sender_id == owner_id:
       if event.photo:
         try:
-          photo = event.message.media.photo
-          code_snippet = (
-              f"InputPhoto(id={photo.id}, "
-              f"access_hash={photo.access_hash}, "
-              f"file_reference={repr(photo.file_reference)})"
-          )
+          # استخراج الـ file_id النصي تماماً بالشكل التقليدي المطلوب
+          file_id_str = utils.pack_bot_file_id(event.media)
+
           await event.reply(
-              f"<b>✅ انسخ هذا السطر وضعه في اللعبة:</b>\n\n<code>{code_snippet}</code>",
+              f"<b>✅ تم استخراج المعرف بنجاح:</b>\n\n"
+              f"<code>{file_id_str}=الجواب_هنا</code>",
               parse_mode="html",
           )
         except Exception as e:
-          await event.reply(f"❌ حدث خطأ: {e}")
+          await event.reply(f"❌ حدث خطأ أثناء التوليد: {e}")
