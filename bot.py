@@ -3,8 +3,9 @@ import json
 import os
 from telethon import Button, events
 
-# تحميل بيانات الأسئلة
-DATA_FILE = "games_data.json"
+# تحديد مسار ملف البيانات بدقة بناءً على مكان وجود الملف الحالي
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, "games_data.json")
 
 
 def load_games():
@@ -12,6 +13,7 @@ def load_games():
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       return json.load(f)
   return []
+
 
 
 # متغيرات تتبع حالة المسابقة لكل مجموعة
