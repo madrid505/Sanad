@@ -11,7 +11,7 @@ from database import db
 from admin_monitor import track_admin_activity, get_admin_report, get_detailed_session_report, get_specific_admin_report
 #from help_system import setup_help_system
 from bot import setup_game_handlers
-#from extractor import setup_id_extractor
+from extractor import setup_id_extractor
 
 
 # --- إعدادات البوت الملكي ---
@@ -251,37 +251,6 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
 
 
 
-
-from telethon import events
-
-
-def setup_id_extractor(client):
-
-  @client.on(events.NewMessage(incoming=True))
-  async def get_private_file_id(event):
-    # التأكد حصرياً من أن الرسالة مرسلة في الخاص
-    if not event.is_private:
-      return
-
-    # التحقق مما إذا كانت الرسالة تحتوي على صورة
-    if event.photo:
-      try:
-        # جلب الـ File ID الفعلي المباشر
-        file_id = event.message.file.id
-
-        # طباعة المعرف في السجلات للتأكد
-        print(f"📌 [نجاح استخراج الصورة] File ID: {file_id}")
-
-        # إرسال الرد في الخاص فوراً
-        await event.reply(
-            "✅ **تم استلام الصورة في الخاص بنجاح!**\n\n"
-            "📋 **معرف الصورة (File ID):**\n"
-            f"`{file_id}`\n\n"
-            "💡 *انسخ هذا الكود وضعه في قائمة الأسئلة لديك.*",
-            parse_mode="md",
-        )
-      except Exception as e:
-        print(f"❌ خطأ أثناء استخراج معرف الصورة في الخاص: {e}")
 
 
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
