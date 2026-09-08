@@ -12,7 +12,7 @@ from admin_monitor import track_admin_activity, get_admin_report, get_detailed_s
 #from help_system import setup_help_system
 import Extractor
 
-
+from bot import setup_game_handlers
 
 # --- إعدادات البوت الملكي ---
 API_ID = 33183154
@@ -414,6 +414,7 @@ async def main_handler(event):
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
 #from help_system import setup_help_system
 #setup_help_system(client, ALLOWED_GROUPS)
+setup_game_handlers(client)
 Extractor.setup_extractor_handlers(client, OWNER_ID)
 client.loop.create_task(names_patrol_task()) 
 client.loop.create_task(exits_scheduler_task()) 
