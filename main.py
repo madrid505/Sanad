@@ -10,8 +10,7 @@ from telethon import TelegramClient, events, types, functions, errors
 from database import db
 from admin_monitor import track_admin_activity, get_admin_report, get_detailed_session_report, get_specific_admin_report
 #from help_system import setup_help_system
-from bot import setup_game_handlers
-#from extractor import setup_id_extractor
+
 
 
 # --- إعدادات البوت الملكي ---
@@ -22,11 +21,10 @@ OWNER_ID = 5010882230
 
 # --- تحديث قائمة المجموعات المسموحة ---
 ALLOWED_GROUPS = [
-    -1004400057155,
     -1004432647304,
     -1002052564369,
     -1004477090207,
-    -1004290639724,
+    -1004290639724
 ]
 
 
@@ -35,8 +33,7 @@ ALLOWED_GROUPS = [
 
 
 
-
-client = TelegramClient('Monopoly_Radar_V7_5', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+client = TelegramClient('Monopoly_Radar_V5_1', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 radar_lock = asyncio.Lock()
 
 # --- [1] دالة جلب الرتبة الملكية (المحدثة والآمنة) ---
@@ -245,13 +242,7 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
         await client(functions.channels.EditBannedRequest(event.chat_id, target_id, rights))
         return f"⚖️ **| مـحـكـمـة مـونـوبـولي**\n━━━━━━━━━━━━━━\n👤 **المستهدف:** {target_name}\n🆔 `{target_id}`\n✅ **الإجراء:** {act_text}\n━━━━━━━━━━━━━━"
     except Exception as e: return f"❌ فشل: {str(e)}"
-    from telethon import events
-
-
-
-
-
-
+        
 
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
@@ -302,31 +293,10 @@ async def main_handler(event):
         if not is_reply_to_bot and not is_game_cmd:
             track_admin_activity(event.sender_id, fn)
 
-# --- دالة استخراج معرفات الصور الآمنة والمباشرة ---
-@client.on(events.NewMessage(incoming=True))
-async def get_private_file_id(event):
-    if not event.is_private:
-        return
-        
-    if event.photo:
-        try:
-            file_id = event.message.file.id
-            print(f"📌 [نجاح استخراج الصورة] File ID: {file_id}")
-            await event.reply(
-                "✅ **تم استلام الصورة في الخاص بنجاح!**\n\n"
-                "📋 **معرف الصورة (File ID):**\n"
-                f"`{file_id}`\n\n"
-                "💡 *انسخ هذا الكود وضعه في قائمة الأسئلة لديك.*",
-                parse_mode="md",
-            )
-        except Exception as e:
-            print(f"❌ خطأ أثناء استخراج معرف الصورة في الخاص: {e}")
 
 
-
-            
-
-
+    # إذا لم يكن مشرفاً، لا يكمل معالجة الأوامر الإدارية
+    if not is_admin: return
 
     # [3] استخراج الهدف (رد، آيدي، أو يوزر) - شامل لجميع الأنماط مع await
     target_id = None
@@ -441,13 +411,12 @@ async def get_private_file_id(event):
 # --- بدء التشغيل النهائي ---
 
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
-#from help_system import setup_help_system
+from help_system import setup_help_system
 #setup_help_system(client, ALLOWED_GROUPS)
 
 client.loop.create_task(names_patrol_task()) 
 client.loop.create_task(exits_scheduler_task()) 
 client.loop.create_task(monitor_admin_log()) 
 client.loop.create_task(daily_reset_task()) 
-setup_game_handlers(client)
 
 client.run_until_disconnected()
