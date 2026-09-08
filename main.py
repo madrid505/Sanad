@@ -245,7 +245,7 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
         await client(functions.channels.EditBannedRequest(event.chat_id, target_id, rights))
         return f"⚖️ **| مـحـكـمـة مـونـوبـولي**\n━━━━━━━━━━━━━━\n👤 **المستهدف:** {target_name}\n🆔 `{target_id}`\n✅ **الإجراء:** {act_text}\n━━━━━━━━━━━━━━"
     except Exception as e: return f"❌ فشل: {str(e)}"
-        from telethon import events
+    from telethon import events
 
 
 
