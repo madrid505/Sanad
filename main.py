@@ -409,16 +409,19 @@ async def main_handler(event):
             db.set_rank(str(event.chat_id), target_id, "عضو 👤")
             await event.reply(f"📉 تم تنزيل [{target_name}](tg://user?id={target_id}) إلى رتبة عضو.")
 
+
+
 # --- بدء التشغيل النهائي ---
 
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
-#from help_system import setup_help_system
-#setup_help_system(client, ALLOWED_GROUPS)
+# from help_system import setup_help_system
+# setup_help_system(client, ALLOWED_GROUPS)
 setup_game_handlers(client)
 Extractor.setup_extractor_handlers(client, OWNER_ID)
-client.loop.create_task(names_patrol_task()) 
-client.loop.create_task(exits_scheduler_task()) 
-client.loop.create_task(monitor_admin_log()) 
-client.loop.create_task(daily_reset_task()) 
+client.loop.create_task(names_patrol_task())
+client.loop.create_task(exits_scheduler_task())
+client.loop.create_task(monitor_admin_log())
+client.loop.create_task(daily_reset_task())
 
 client.run_until_disconnected()
+
