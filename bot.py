@@ -3,40 +3,42 @@ import json
 import os
 from telethon import Button, events
 
-# تحديد المسار المطلق بشكل يضمن الوصول لملف البيانات مهما كان مجلد التشغيل
+# تحديد المسار المطلق لملف البيانات
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "games_data.json")
 
 
 def load_games():
-  # محاولة قراءة الملف مع التأكد من المسار
-  target_path = DATA_FILE
-  if not os.path.exists(target_path):
-    # مسار بديل احتياطي في حال كان التشغيل من مجلد خارجي
-    target_path = "games_data.json"
+  paths_to_try = [DATA_FILE, "games_data.json", "./games_data.json"]
+  last_error = None
 
-  if os.path.exists(target_path):
-    try:
-      with open(target_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        print(
-            f"✅ [لعبة الغباش] تم قراءة ملف الأسئلة بنجاح، عدد الأسئلة:"
-            f" {len(data)}"
-        )
-        return data
-    except Exception as e:
-      print(f"❌ [لعبة الغباش] خطأ في قراءة محتوى ملف JSON: {e}")
-      return []
+  for path in paths_to_try:
+    if os.path.exists(path):
+      try:
+        with open(path, "r", encoding="utf-8") as f:
+          data = json.load(f)
+          if isinstance(data, list) and len(data) > 0:
+            print(f"✅ [لعبة الغباش] تم تحميل {len(data)} سؤالاً بنجاح من: {path}")
+            return data, None
+          else:
+            err = "ملف الـ JSON فارغ أو ليس على شكل مصفوفة [...]"
+            print(f"⚠️ [لعبة الغباش] تنبيه: {err}")
+            return [], err
+      except Exception as e:
+        last_error = str(e)
+        print(f"❌ [لعبة الغباش] خطأ أثناء قراءة ملف JSON في المسار {path}: {e}")
 
-  print(
-      f"❌ [لعبة الغباش] ملف games_data.json غير موجود في المسار: {target_path}"
+  err_msg = (
+      f"لم يتم العثور على الملف في أي من المسارات المتاحة. خطأ أخير:"
+      f" {last_error}"
   )
-  return []
+  print(f"❌ [لعبة الغباش] فشل التحميل: {err_msg}")
+  return [], err_msg
 
 
 # متغيرات تتبع حالة المسابقة لكل مجموعة
-active_games = {}  # chat_id: {"question_index": 0, "winner_found": False}
-user_scores = {}  # chat_id: {user_id: {"name": name, "score": count}}
+active_games = {}
+user_scores = {}
 
 
 def setup_game_handlers(client):
@@ -45,11 +47,11 @@ def setup_game_handlers(client):
   async def start_game(event):
     chat_id = event.chat_id
 
-    games = load_games()
+    games, err_msg = load_games()
     if not games:
+      # إرسال رسالة بسيطة للمجموعة بينما يتم تسجيل التفاصيل التقنية في السجل (Logs)
       await event.reply(
-          "❌ عذراً، لا توجد أسئلة مخزنة حالياً أو حدث خطأ في قراءة ملف"
-          " games_data.json"
+          "❌ عذراً، لا توجد أسئلة مخزنة حالياً أو تعذر قراءة ملف البيانات."
       )
       return
 
@@ -63,24 +65,32 @@ def setup_game_handlers(client):
     q_data = games[active_games[chat_id]["question_index"]]
     active_games[chat_id]["winner_found"] = False
 
-    # 1. رسالة البدء بالخط العريض والرموز
+    # 1. رسالة البدء
     start_msg_text = (
         "👑 **يا اساطير شعب مونوبولي العظيم** 👑\n\n"
         "🔥 **لقد بدأ تحدي الغباش** 🔥\n\n"
-        "🧩 **كل ما هو عليك ان تضغط على الصورة ذات الغباش، وتجمع الاحرف مع بعضها"
-        " لتظهر لنا الكلمة الصحيحة** 🧩"
+        "🧩 **كل ما هو عليك ان تضغط على الصورة ذات الغباش، وتجمع الاحرف مع"
+        " بعضها لتظهر لنا الكلمة الصحيحة** 🧩"
     )
     await client.send_message(chat_id, start_msg_text, parse_mode="md")
 
-    # 2. إرسال صورة الغباش مع زر النتائج
+    # 2. إرسال صورة الغباش مع تفعيل خاصية السبويلر
     buttons = [[Button.inline("📊 دفتر النتائج", data="show_scoreboard".encode())]]
 
-    sent_msg = await client.send_file(
-        chat_id,
-        file=q_data["spoiler_file_id"],
-        buttons=buttons,
-        attributes=None,
-    )
+    try:
+      sent_msg = await client.send_file(
+          chat_id,
+          file=q_data["spoiler_file_id"],
+          buttons=buttons,
+          spoiler=True,
+      )
+    except Exception as e:
+      print(f"❌ [لعبة الغباش] خطأ في إرسال صورة الغباش (Spoiler): {e}")
+      await event.reply(
+          "❌ حدث خطأ تقني أثناء محاولة إرسال صورة اللغز. تم تسجيل الخطأ في"
+          " السجل."
+      )
+      return
 
     # 3. تشغيل مهمة التذكير التشجعي كل 5 ثوانٍ
     asyncio.create_task(encouragement_loop(client, chat_id, sent_msg.id))
@@ -116,7 +126,7 @@ def setup_game_handlers(client):
       return
 
     user_text = event.raw_text.strip()
-    games = load_games()
+    games, _ = load_games()
     if not games:
       return
     current_idx = active_games[chat_id]["question_index"]
@@ -138,22 +148,23 @@ def setup_game_handlers(client):
       user_scores[chat_id][user_id]["score"] += 1
       current_score = user_scores[chat_id][user_id]["score"]
 
-      # إرسال صورة الجواب الصحيح بالرد على رسالة الفائز
       buttons = [
           [Button.inline("📊 دفتر النتائج", data="show_scoreboard".encode())]
       ]
-      await event.reply(
-          file=q_data["answer_file_id"],
-          message=(
-              f"🎉 **مبروووووك يا بطل** 🎉\n\n"
-              f"✅ **جوابك صحيح ١٠٠٪** ✅\n\n"
-              f"🎯 **استمر في التحدي**"
-          ),
-          parse_mode="md",
-          buttons=buttons,
-      )
+      try:
+        await event.reply(
+            file=q_data["answer_file_id"],
+            message=(
+                f"🎉 **مبروووووك يا بطل** 🎉\n\n"
+                f"✅ **جوابك صحيح ١٠٠٪** ✅\n\n"
+                f"🎯 **استمر في التحدي**"
+            ),
+            parse_mode="md",
+            buttons=buttons,
+        )
+      except Exception as e:
+        print(f"❌ [لعبة الغباش] خطأ في إرسال صورة الجواب الصحيح: {e}")
 
-      # التحقق من 5 انتصارات
       if current_score >= 5:
         congrats_msg = (
             f"🏆 **مبروووووك يا اسطورة الغباش [{user_name}](tg://user?id={user_id})"
