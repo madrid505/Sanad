@@ -1,11 +1,14 @@
-from telegram import Update
-from telegram.ext import ContextTypes, MessageHandler, filters
-from config import OWNER_ID
+from telethon import events
 
-async def catch_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id == OWNER_ID and update.effective_chat.type == 'private':
-        if update.message.photo:
-            p_id = update.message.photo[-1].file_id
-            await update.message.reply_html(f"<b>✅ تم الاصطياد:</b>\n<code>{p_id}=الجواب_هنا</code>")
 
-hunter_handler = MessageHandler(filters.PHOTO & filters.ChatType.PRIVATE, catch_photo)
+def setup_extractor_handlers(client, owner_id):
+  @client.on(events.NewMessage(incoming=True))
+  async def catch_photo(event):
+    # التحقق من أن الرسالة في المحادثة الخاصة وأن المرسل هو المالك
+    if event.is_private and event.sender_id == owner_id:
+      if event.photo:
+        p_id = event.photo.id
+        await event.reply(
+            f"<b>✅ تم الاصطياد:</b>\n<code>{p_id}=الجواب_هنا</code>",
+            parse_mode="html",
+        )
