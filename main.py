@@ -411,7 +411,7 @@ async def main_handler(event):
 # --- بدء التشغيل النهائي ---
 
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
-from help_system import setup_help_system
+#from help_system import setup_help_system
 #setup_help_system(client, ALLOWED_GROUPS)
 
 client.loop.create_task(names_patrol_task()) 
