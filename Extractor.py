@@ -1,4 +1,5 @@
 from telethon import events
+from telethon.tl.types import InputPhoto
 
 
 def setup_extractor_handlers(client, owner_id):
@@ -8,21 +9,15 @@ def setup_extractor_handlers(client, owner_id):
     if event.is_private and event.sender_id == owner_id:
       if event.photo:
         try:
-          # تنزيل الملف مؤقتاً للحصول على الكائن الحقيقي
-          path = await event.download_media()
-
-          # طباعة النجاح في سجل السيرفر
-          print(f"--- [Extractor] Successfully caught & downloaded: {path}")
-
+          photo = event.message.media.photo
+          code_snippet = (
+              f"InputPhoto(id={photo.id}, "
+              f"access_hash={photo.access_hash}, "
+              f"file_reference={repr(photo.file_reference)})"
+          )
           await event.reply(
-              f"<b>✅ تم حفظ الصورة بنجاح!</b>\n"
-              f"📁 مسارها على السيرفر:\n<code>{path}</code>\n\n"
-              f"يمكنك إرسالها في اللعبة هكذا:\n"
-              f"<code>await client.send_file(chat_id, '{path}')</code>",
+              f"<b>✅ انسخ هذا السطر وضعه في اللعبة:</b>\n\n<code>{code_snippet}</code>",
               parse_mode="html",
           )
         except Exception as e:
-          # طباعة تفاصيل المشكلة والخطأ في سجل السيرفر بدقة
-          print(f"--- [Extractor Error] Failed to process photo: {str(e)}")
-
           await event.reply(f"❌ حدث خطأ: {e}")
