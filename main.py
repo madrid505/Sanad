@@ -414,8 +414,7 @@ async def main_handler(event):
 print("--- [Monopoly Royal Radar V5.1 FINAL Online] ---", flush=True)
 #from help_system import setup_help_system
 #setup_help_system(client, ALLOWED_GROUPS)
-client.add_event_handler(Extractor.catch_photo, Extractor.hunter_handler)
-
+Extractor.setup_extractor_handlers(client, OWNER_ID)
 client.loop.create_task(names_patrol_task()) 
 client.loop.create_task(exits_scheduler_task()) 
 client.loop.create_task(monitor_admin_log()) 
