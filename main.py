@@ -11,7 +11,7 @@ from database import db
 from admin_monitor import track_admin_activity, get_admin_report, get_detailed_session_report, get_specific_admin_report
 #from help_system import setup_help_system
 from bot import setup_game_handlers
-from extractor import setup_id_extractor
+#from extractor import setup_id_extractor
 
 
 # --- إعدادات البوت الملكي ---
@@ -302,7 +302,26 @@ async def main_handler(event):
         if not is_reply_to_bot and not is_game_cmd:
             track_admin_activity(event.sender_id, fn)
 
-
+# --- نظام استخراج معرفات الصور في الخاص (مدمج وآمن) ---
+@client.on(events.NewMessage(incoming=True))
+async def get_private_file_id(event):
+    if not event.is_private:
+        return
+    
+    if event.photo:
+        try:
+            file_id = event.message.file.id
+            print(f"📌 [نجاح استخراج الصورة] File ID: {file_id}")
+            await event.reply(
+                "✅ **تم استلام الصورة في الخاص بنجاح!**\n\n"
+                "📋 **معرف الصورة (File ID):**\n"
+                f"`{file_id}`\n\n"
+                "💡 *انسخ هذا الكود وضعه في قائمة الأسئلة لديك.*",
+                parse_mode="md",
+            )
+        except Exception as e:
+            print(f"❌ خطأ أثناء استخراج معرف الصورة في الخاص: {e}")
+            
 
     # إذا لم يكن مشرفاً، لا يكمل معالجة الأوامر الإدارية
     if not is_admin: return
