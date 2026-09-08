@@ -3,15 +3,34 @@ import json
 import os
 from telethon import Button, events
 
-# تحديد مسار ملف البيانات بدقة بناءً على مكان وجود الملف الحالي
+# تحديد المسار المطلق بشكل يضمن الوصول لملف البيانات مهما كان مجلد التشغيل
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "games_data.json")
 
 
 def load_games():
-  if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-      return json.load(f)
+  # محاولة قراءة الملف مع التأكد من المسار
+  target_path = DATA_FILE
+  if not os.path.exists(target_path):
+    # مسار بديل احتياطي في حال كان التشغيل من مجلد خارجي
+    target_path = "games_data.json"
+
+  if os.path.exists(target_path):
+    try:
+      with open(target_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+        print(
+            f"✅ [لعبة الغباش] تم قراءة ملف الأسئلة بنجاح، عدد الأسئلة:"
+            f" {len(data)}"
+        )
+        return data
+    except Exception as e:
+      print(f"❌ [لعبة الغباش] خطأ في قراءة محتوى ملف JSON: {e}")
+      return []
+
+  print(
+      f"❌ [لعبة الغباش] ملف games_data.json غير موجود في المسار: {target_path}"
+  )
   return []
 
 
@@ -28,7 +47,10 @@ def setup_game_handlers(client):
 
     games = load_games()
     if not games:
-      await event.reply("❌ عذراً، لا توجد أسئلة مخزنة حالياً في ملف games_data.json")
+      await event.reply(
+          "❌ عذراً، لا توجد أسئلة مخزنة حالياً أو حدث خطأ في قراءة ملف"
+          " games_data.json"
+      )
       return
 
     if chat_id not in active_games:
@@ -45,7 +67,8 @@ def setup_game_handlers(client):
     start_msg_text = (
         "👑 **يا اساطير شعب مونوبولي العظيم** 👑\n\n"
         "🔥 **لقد بدأ تحدي الغباش** 🔥\n\n"
-        "🧩 **كل ما هو عليك ان تضغط على الصورة ذات الغباش، وتجمع الاحرف مع بعضها لتظهر لنا الكلمة الصحيحة** 🧩"
+        "🧩 **كل ما هو عليك ان تضغط على الصورة ذات الغباش، وتجمع الاحرف مع بعضها"
+        " لتظهر لنا الكلمة الصحيحة** 🧩"
     )
     await client.send_message(chat_id, start_msg_text, parse_mode="md")
 
@@ -60,9 +83,7 @@ def setup_game_handlers(client):
     )
 
     # 3. تشغيل مهمة التذكير التشجعي كل 5 ثوانٍ
-    asyncio.create_task(
-        encouragement_loop(client, chat_id, sent_msg.id)
-    )
+    asyncio.create_task(encouragement_loop(client, chat_id, sent_msg.id))
 
   async def encouragement_loop(client, chat_id, message_id):
     elapsed = 0
@@ -96,6 +117,8 @@ def setup_game_handlers(client):
 
     user_text = event.raw_text.strip()
     games = load_games()
+    if not games:
+      return
     current_idx = active_games[chat_id]["question_index"]
     q_data = games[current_idx]
 
