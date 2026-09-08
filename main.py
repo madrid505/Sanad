@@ -447,5 +447,5 @@ client.loop.create_task(exits_scheduler_task())
 client.loop.create_task(monitor_admin_log()) 
 client.loop.create_task(daily_reset_task()) 
 setup_game_handlers(client)
-setup_id_extractor(client)
+
 client.run_until_disconnected()
