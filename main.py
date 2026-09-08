@@ -302,12 +302,12 @@ async def main_handler(event):
         if not is_reply_to_bot and not is_game_cmd:
             track_admin_activity(event.sender_id, fn)
 
-# --- نظام استخراج معرفات الصور في الخاص (مدمج وآمن) ---
+# --- دالة استخراج معرفات الصور الآمنة والمباشرة ---
 @client.on(events.NewMessage(incoming=True))
 async def get_private_file_id(event):
     if not event.is_private:
         return
-    
+        
     if event.photo:
         try:
             file_id = event.message.file.id
@@ -321,6 +321,8 @@ async def get_private_file_id(event):
             )
         except Exception as e:
             print(f"❌ خطأ أثناء استخراج معرف الصورة في الخاص: {e}")
+
+
             
 
     # إذا لم يكن مشرفاً، لا يكمل معالجة الأوامر الإدارية
