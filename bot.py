@@ -15,7 +15,6 @@ def load_games():
   return []
 
 
-
 # متغيرات تتبع حالة المسابقة لكل مجموعة
 active_games = {}  # chat_id: {"question_index": 0, "winner_found": False}
 user_scores = {}  # chat_id: {user_id: {"name": name, "score": count}}
@@ -27,7 +26,6 @@ def setup_game_handlers(client):
   async def start_game(event):
     chat_id = event.chat_id
 
-    # التحقق من أن المجموعات مسموحة إذا كنت تستخدم قائمة تصفية
     games = load_games()
     if not games:
       await event.reply("❌ عذراً، لا توجد أسئلة مخزنة حالياً في ملف games_data.json")
@@ -51,15 +49,13 @@ def setup_game_handlers(client):
     )
     await client.send_message(chat_id, start_msg_text, parse_mode="md")
 
-    # 2. إرسال صورة الغباش (ملاحظة: Telethon يدعم خاصية الـ spoiler عبر التنسيق أو بارامترات الوسائط المتقدمة)
+    # 2. إرسال صورة الغباش مع زر النتائج
     buttons = [[Button.inline("📊 دفتر النتائج", data="show_scoreboard".encode())]]
 
-    # إرسال الصورة مع زر النتائج
     sent_msg = await client.send_file(
         chat_id,
         file=q_data["spoiler_file_id"],
         buttons=buttons,
-        # في حال دعم إصدار Telethon خاصية الـ spoiler للوسائط المباشرة
         attributes=None,
     )
 
@@ -106,6 +102,8 @@ def setup_game_handlers(client):
     if user_text == q_data["correct_answer"]:
       active_games[chat_id]["winner_found"] = True
       user = await event.get_sender()
+      if not user:
+        return
       user_id = user.id
       user_name = user.first_name or "المتحدي"
 
@@ -135,8 +133,8 @@ def setup_game_handlers(client):
       # التحقق من 5 انتصارات
       if current_score >= 5:
         congrats_msg = (
-            f"🏆 **مبروووووك يا اسطورة الغباش [{user_name}](tg://user?id={user_id})** 🏆\n\n"
-            f"🌟 **لقد حققت خمس انتصارات وتغلبت على الجميع!** 🌟"
+            f"🏆 **مبروووووك يا اسطورة الغباش [{user_name}](tg://user?id={user_id})"
+            f"** 🏆\n\n🌟 **لقد حققت خمس انتصارات وتغلبت على الجميع!** 🌟"
         )
         await client.send_message(chat_id, congrats_msg, parse_mode="md")
         user_scores[chat_id][user_id]["score"] = 0
