@@ -252,6 +252,9 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
 
 
 
+from telethon import events
+
+
 def setup_id_extractor(client):
 
   @client.on(events.NewMessage(incoming=True))
