@@ -325,8 +325,7 @@ async def get_private_file_id(event):
 
             
 
-    # إذا لم يكن مشرفاً، لا يكمل معالجة الأوامر الإدارية
-    if not is_admin: return
+
 
     # [3] استخراج الهدف (رد، آيدي، أو يوزر) - شامل لجميع الأنماط مع await
     target_id = None
