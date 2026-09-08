@@ -248,6 +248,10 @@ async def apply_penalty(event, target_id, action, target_name, duration_mins=Non
         from telethon import events
 
 
+
+
+
+
 def setup_id_extractor(client):
 
   @client.on(events.NewMessage(incoming=True))
@@ -275,7 +279,7 @@ def setup_id_extractor(client):
         )
       except Exception as e:
         print(f"❌ خطأ أثناء استخراج معرف الصورة في الخاص: {e}")
-        
+
 
 @client.on(events.NewMessage(chats=ALLOWED_GROUPS))
 async def main_handler(event):
